@@ -2,9 +2,8 @@ cmake_minimum_required(VERSION 3.26)
 
 # NOTE: update executable name in .github/workflows/cmake.yml:25 when changing executable name in this file
 # for now, the project name is used as the executable name
-set(MAIN_PROJECT_NAME "oop")
+set(MAIN_PROJECT_NAME "ailife")
 set(MAIN_EXECUTABLE_NAME "${MAIN_PROJECT_NAME}")
-
 
 project(${MAIN_PROJECT_NAME})
 # set(CMAKE_PROJECT_VERSION_MAJOR 0)
@@ -107,19 +106,50 @@ include(cmake/CopyHelper.cmake)
 
 # external dependencies with FetchContent
 include(FetchContent)
-#
+
 # set(FETCHCONTENT_QUIET OFF)
 # set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
-#
+
 # NOTE: Also update env vars used for caching in
 #         - .github/actions/configure-cmake/action.yml
 #         - .github/workflows/cmake.yml
- FetchContent_Declare(
-         googletest
-         URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
- )
-#
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
+)
 FetchContent_MakeAvailable(googletest)
+
+set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(ftxui
+    GIT_REPOSITORY https://github.com/ArthurSonzogni/ftxui
+    GIT_TAG        v6.1.9
+    GIT_SHALLOW    TRUE
+    SYSTEM
+)
+FetchContent_MakeAvailable(ftxui)
+
+# CPR_USE_SYSTEM_CURL=OFF bundles libcurl from source, avoiding the Windows/MinGW system curl ABI mismatch
+set(CPR_USE_SYSTEM_CURL  OFF CACHE BOOL "Use bundled libcurl" FORCE)
+set(CPR_BUILD_TESTS      OFF CACHE BOOL "" FORCE)
+set(CPR_BUILD_TESTS_SSL  OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(cpr
+    GIT_REPOSITORY https://github.com/libcpr/cpr.git
+    GIT_TAG        1.14.2
+    GIT_SHALLOW    TRUE
+    SYSTEM
+)
+FetchContent_MakeAvailable(cpr)
+
+FetchContent_Declare(json
+    URL      https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
+)
+FetchContent_MakeAvailable(json)
 
 ###############################################################################
 
@@ -135,18 +165,19 @@ add_executable(${MAIN_EXECUTABLE_NAME} main.cpp ${SOURCES})
 # NOTE: Add all defined targets (e.g. executables, libraries, etc. )
 # NOTE: RUN_SANITIZERS is optional, if it's not present it will default to true
 set_compiler_flags(RUN_SANITIZERS TRUE TARGET_NAMES ${MAIN_EXECUTABLE_NAME})
-# set_compiler_flags(TARGET_NAMES ${MAIN_EXECUTABLE_NAME} ${FOO} ${BAR})
-# where ${FOO} and ${BAR} represent additional executables or libraries
-# you want to compile with the set compiler flags
 
 ###############################################################################
 
 # use SYSTEM so cppcheck and clang-tidy do not report warnings from these directories
 target_include_directories(${MAIN_EXECUTABLE_NAME} SYSTEM PRIVATE generated/include)
-# target_include_directories(${MAIN_EXECUTABLE_NAME} SYSTEM PRIVATE ext/<SomeHppLib>/include)
-# target_include_directories(${MAIN_EXECUTABLE_NAME} SYSTEM PRIVATE ${<SomeLib>_SOURCE_DIR}/include)
-# target_link_directories(${MAIN_EXECUTABLE_NAME} PRIVATE ${<SomeLib>_BINARY_DIR}/lib)
-# target_link_libraries(${MAIN_EXECUTABLE_NAME} <SomeLib>)
+
+target_link_libraries(${MAIN_EXECUTABLE_NAME} PRIVATE
+    ftxui::screen
+    ftxui::dom
+    ftxui::component
+    cpr::cpr
+    nlohmann_json::nlohmann_json
+)
 
 ###############################################################################
 
@@ -161,19 +192,21 @@ endif()
 #enable_testing()
 #
 #add_executable(
-#        test_oop
+#        test_ailife
 #        ${HEADERS}
 #        ${TESTS}
 #        ${SOURCES}
 #)
 #
 #target_link_libraries(
-#        test_oop
+#        test_ailife
 #        GTest::gtest_main
+#        ftxui::screen ftxui::dom ftxui::component
+#        cpr::cpr
+#        nlohmann_json::nlohmann_json
 #)
 #
 #include(GoogleTest)
-#gtest_discover_tests(test_oop)
+#gtest_discover_tests(test_ailife)
+
 copy_files(FILES tastatura.txt COPY_TO_DESTINATION TARGET_NAME ${MAIN_EXECUTABLE_NAME})
-# copy_files(FILES tastatura.txt config.json DIRECTORY images sounds COPY_TO_DESTINATION TARGET_NAME ${MAIN_EXECUTABLE_NAME})
-# copy_files(DIRECTORY images sounds COPY_TO_DESTINATION TARGET_NAME ${MAIN_EXECUTABLE_NAME})

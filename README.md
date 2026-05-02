@@ -1,32 +1,49 @@
-# Nu primesc notă pentru că nu am pus titlu și descriere
+# AI Life
 
-### Folosiți template-ul corespunzător grupei voastre!
+Un studiu de personaje in terminal: mai multe AI-uri traiesc in paralel, scriu in jurnal, se cunosc, se cearta, mor, lasa in urma memorii.
 
-| Laborant  | Link template                                |
-|-----------|----------------------------------------------|
-| Dragoș B  | https://github.com/Ionnier/oop-template      |
-| Tiberiu M | https://github.com/MaximTiberiu/oop-template |
-| Marius MC | https://github.com/mcmarius/oop-template     |
+---
 
-## Instrucțiuni de compilare
+## Instructiuni de build
 
-Proiectul este configurat cu CMake.
+### Cerinte
 
-Instrucțiuni pentru terminal:
+| Tool | Versiune minima |
+|------|----------------|
+| CMake | 3.26 |
+| Compilator | GCC 12 / Clang 16 / MSVC 19.35 (C++23) |
+| Git | orice versiune recenta (pentru FetchContent) |
 
-1. Pasul de configurare
+La primul `cmake --build`, CMake descarca automat:
+- **FTXUI v6.1.9**
+- **cpr v1.14.2**
+- **nlohmann/json v3.12.0**
+
+### Linux / macOS
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-# sau ./scripts/cmake.sh configure
+cmake --build build
+./build/ailife
 ```
 
-Sau pe Windows cu GCC:
+### Windows (MSVC)
+
+```sh
+cmake -S . -B build
+cmake --build build --config Debug
+build\Debug\ailife.exe
+```
+
+### Windows (GCC / MinGW + Ninja)
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -G Ninja
-# sau ./scripts/cmake.sh configure -g Ninja
+cmake --build build
+build\ailife.exe
 ```
 
-La acest pas putem cere să generăm fișiere de proiect pentru diverse medii de lucru.
+---
 
 ## Cerințe obligatorii
 
