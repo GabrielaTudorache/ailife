@@ -1,40 +1,32 @@
-#include <ftxui/component/component.hpp>
-#include <ftxui/component/screen_interactive.hpp>
-#include <ftxui/dom/elements.hpp>
+#include "action.h"
+#include "ai_character.h"
+#include "memory_entry.h"
+#include "personality.h"
 
-#include <cpr/cpr.h>
-#include <nlohmann/json.hpp>
+#include <iostream>
+#include <memory>
 
 int main() {
-    using namespace ftxui;
+    Personality ada_personality{80, 70, 40, 65, 35, "collects shells"};
+    AICharacter ada{"Ada", ada_personality};
 
-    auto screen = ScreenInteractive::Fullscreen();
+    Personality teo_personality{45, 60, 75, 55, 50, "hums at night"};
+    AICharacter teo{"Teo", teo_personality};
 
-    auto renderer = Renderer([&] {
-        auto [width, height] = Terminal::Size();
+    ada += std::make_unique<JournalEntry>("Saw rain for the first time");
+    teo += std::make_unique<LetterEntry>("Ada", "Teo", "I found a blue stone today. It was beautiful.");
+    teo = teo + std::make_unique<Inheritance>("Ada", "Teo, take care of the shells for me.");
 
-        return vbox({
-                   text(""),
-                   text(" AI Life ") | bold | color(Color::Cyan) | center,
-                   text(""),
-                   separator(),
-                   text(""),
-                   text("  Dimensiuni: " + std::to_string(width) + "x" + std::to_string(height)) | color(Color::Green),
-                   text("  Apasa 'q' pentru a iesi.") | color(Color::Yellow),
-                   text(""),
-               }) |
-               border;
-    });
+    ada.apply(Action{ActionKind::Feed, "", ""});
+    teo.apply(Action{ActionKind::WriteJournal, "The night hums back when I hum.", ""});
 
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if (event == Event::Character('q')) {
-            screen.ExitLoopClosure()();
-            return true;
-        }
-        return false;
-    });
+    AICharacter test;
+    std::cin >> test;
 
-    screen.Loop(component);
+    std::cout << ada << '\n';
+    std::cout << teo << '\n';
+    std::cout << test << '\n';
+    std::cout << "Characters created: " << AICharacter::getCreatedCount() << '\n';
 
     return 0;
 }
