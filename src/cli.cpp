@@ -1,0 +1,61 @@
+#include "cli.h"
+
+#include <chrono>
+#include <cmath>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+
+namespace {
+bool isArchetype(std::string_view value) {
+    return value == "curious" || value == "cautious" || value == "warm" || value == "gloomy";
+}
+} // namespace
+
+namespace Cli {
+std::string usage() {
+    return "usage: ailife --spawn --name <name> --archetype <curious|cautious|warm|gloomy> "
+           "[--duration <minutes>] [--mock-llm]";
+}
+
+Config parse(int argc, char* argv[]) {
+    Config config;
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg{argv[i]};
+        if (arg == "--spawn") {
+            config.spawn = true;
+        } else if (arg == "--name") {
+            if (++i >= argc) {
+                throw std::invalid_argument("--name requires a value\n" + usage());
+            }
+            config.name = argv[i];
+        } else if (arg == "--archetype") {
+            if (++i >= argc) {
+                throw std::invalid_argument("--archetype requires a value\n" + usage());
+            }
+            config.archetype = argv[i];
+        } else if (arg == "--duration") {
+            if (++i >= argc) {
+                throw std::invalid_argument("--duration requires a value\n" + usage());
+            }
+            const double minutes = std::stod(argv[i]);
+            if (minutes <= 0.0) {
+                throw std::invalid_argument("--duration must be positive\n" + usage());
+            }
+            config.duration = std::chrono::seconds{static_cast<int>(std::ceil(minutes * 60.0))};
+        } else if (arg == "--mock-llm") {
+            config.mock_llm = true;
+        } else {
+            throw std::invalid_argument("unknown argument: " + std::string{arg} + '\n' + usage());
+        }
+    }
+
+    if (!config.spawn || config.name.empty()) {
+        throw std::invalid_argument("--spawn and --name are required\n" + usage());
+    }
+    if (!isArchetype(config.archetype)) {
+        throw std::invalid_argument("unknown archetype: " + config.archetype + '\n' + usage());
+    }
+    return config;
+}
+} // namespace Cli

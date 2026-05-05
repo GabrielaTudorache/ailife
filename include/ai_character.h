@@ -7,8 +7,10 @@
 #include "personality.h"
 #include "stat.h"
 
+#include <chrono>
 #include <iosfwd>
 #include <memory>
+#include <string>
 #include <vector>
 
 class AICharacter : public Being {
@@ -25,8 +27,14 @@ class AICharacter : public Being {
 
     const Personality& getPersonality() const;
     const Stat<int>& getHunger() const;
+    const Stat<int>& getEnergy() const;
     const Stat<float>& getMood() const;
+    const Stat<int>& getLoneliness() const;
     const std::vector<std::unique_ptr<MemoryEntry>>& getMemories() const;
+    void setLifespan(std::chrono::seconds lifespan);
+    void recomputeStage();
+    bool isDead() const;
+    void applyDecay();
     static int getCreatedCount();
 
     friend std::ostream& operator<<(std::ostream& out, const AICharacter& character);
@@ -36,8 +44,12 @@ class AICharacter : public Being {
     static int created_count_;
 
     Personality personality_;
-    Stat<int> hunger_{0, 100};
-    Stat<float> mood_{50.0F, 100.0F};
+    Stat<int> hunger_{80, 0, 100, 4};
+    Stat<int> energy_{80, 0, 100, 3};
+    Stat<float> mood_{50.0F, 0.0F, 100.0F, 1.5F};
+    Stat<int> loneliness_{25, 0, 100, -3};
+    std::chrono::steady_clock::time_point birth_time_{std::chrono::steady_clock::now()};
+    std::chrono::seconds lifespan_{std::chrono::minutes{8}};
     std::vector<std::unique_ptr<MemoryEntry>> memories_;
 };
 

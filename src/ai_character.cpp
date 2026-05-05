@@ -1,5 +1,8 @@
 #include "ai_character.h"
 
+#include "memory_entry.h"
+
+#include <chrono>
 #include <iostream>
 #include <utility>
 
@@ -8,7 +11,7 @@ int AICharacter::created_count_ = 0;
 AICharacter::AICharacter() : AICharacter("Unnamed", Personality{}) {}
 
 AICharacter::AICharacter(std::string name, Personality personality)
-    : Being(std::move(name), LifeStage::Adult), personality_(std::move(personality)) {
+    : Being(std::move(name), LifeStage::Young), personality_(std::move(personality)) {
     ++created_count_;
 }
 
@@ -26,7 +29,11 @@ AICharacter& AICharacter::operator=(const AICharacter& other) {
     setLifeStage(other.getLifeStage());
     personality_ = other.personality_;
     hunger_ = other.hunger_;
+    energy_ = other.energy_;
     mood_ = other.mood_;
+    loneliness_ = other.loneliness_;
+    birth_time_ = other.birth_time_;
+    lifespan_ = other.lifespan_;
     memories_.clear();
     memories_.reserve(other.memories_.size());
     for (const auto& memory : other.memories_) {
@@ -38,24 +45,32 @@ AICharacter& AICharacter::operator=(const AICharacter& other) {
 
 AICharacter::~AICharacter() = default;
 
-void AICharacter::tick() {}
+void AICharacter::tick() {
+    applyDecay();
+    recomputeStage();
+}
 
 void AICharacter::apply(const Action& action) {
     switch (action.kind) {
     case ActionKind::Feed:
-        hunger_ += 30;
+        hunger_.modify(30);
+        mood_.modify(2.0F);
         break;
     case ActionKind::Rest:
-        mood_ += 5.0F;
+        energy_.modify(35);
+        mood_.modify(1.0F);
         break;
     case ActionKind::Talk:
-        mood_ += 8.0F;
+        loneliness_.modify(-30);
+        mood_.modify(5.0F);
         break;
     case ActionKind::WriteJournal:
+        mood_.modify(1.0F);
         memories_.push_back(std::make_unique<JournalEntry>(action.narrative));
         break;
     case ActionKind::SayGoodbye:
         memories_.push_back(std::make_unique<LastWords>(action.narrative));
+        setLifeStage(LifeStage::Dying);
         break;
     }
 }
@@ -73,12 +88,57 @@ const Stat<int>& AICharacter::getHunger() const {
     return hunger_;
 }
 
+const Stat<int>& AICharacter::getEnergy() const {
+    return energy_;
+}
+
 const Stat<float>& AICharacter::getMood() const {
     return mood_;
 }
 
+const Stat<int>& AICharacter::getLoneliness() const {
+    return loneliness_;
+}
+
 const std::vector<std::unique_ptr<MemoryEntry>>& AICharacter::getMemories() const {
     return memories_;
+}
+
+void AICharacter::setLifespan(std::chrono::seconds lifespan) {
+    if (lifespan <= std::chrono::seconds{0}) {
+        throw std::invalid_argument("lifespan must be positive");
+    }
+
+    lifespan_ = lifespan;
+    birth_time_ = std::chrono::steady_clock::now();
+}
+
+void AICharacter::recomputeStage() {
+    const auto elapsed = std::chrono::steady_clock::now() - birth_time_;
+    const double lived = std::chrono::duration<double>(elapsed).count();
+    const double total = std::chrono::duration<double>(lifespan_).count();
+    const double ratio = lived / total;
+
+    if (ratio < 0.25) {
+        setLifeStage(LifeStage::Young);
+    } else if (ratio < 0.75) {
+        setLifeStage(LifeStage::Adult);
+    } else if (ratio < 0.95) {
+        setLifeStage(LifeStage::Elder);
+    } else {
+        setLifeStage(LifeStage::Dying);
+    }
+}
+
+bool AICharacter::isDead() const {
+    return std::chrono::steady_clock::now() - birth_time_ >= lifespan_;
+}
+
+void AICharacter::applyDecay() {
+    hunger_.decay();
+    energy_.decay();
+    mood_.decay();
+    loneliness_.decay();
 }
 
 int AICharacter::getCreatedCount() {
@@ -88,7 +148,10 @@ int AICharacter::getCreatedCount() {
 std::ostream& operator<<(std::ostream& out, const AICharacter& character) {
     out << "AICharacter{id=" << character.getId() << ", name=" << character.getName()
         << ", quirk=" << character.personality_.quirk << ", hunger=" << character.hunger_.getValue() << '/'
-        << character.hunger_.getMax() << ", mood=" << character.mood_.getValue() << '/' << character.mood_.getMax()
+        << character.hunger_.getMax() << ", energy=" << character.energy_.getValue() << '/'
+        << character.energy_.getMax() << ", mood=" << character.mood_.getValue() << '/' << character.mood_.getMax()
+        << ", loneliness=" << character.loneliness_.getValue() << '/' << character.loneliness_.getMax()
+        << ", stage=" << static_cast<int>(character.getLifeStage())
         << ", memories=[";
 
     for (std::size_t i = 0; i < character.memories_.size(); ++i) {
