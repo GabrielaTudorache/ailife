@@ -11,6 +11,7 @@ struct Config {
     std::string archetype{"curious"};
     std::chrono::seconds duration{std::chrono::minutes{8}};
     bool mock_llm{false};
+    bool headless{false};
 };
 
 Config parse(int argc, char** argv);

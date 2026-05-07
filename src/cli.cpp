@@ -15,7 +15,7 @@ bool isArchetype(std::string_view value) {
 namespace Cli {
 std::string usage() {
     return "usage: ailife --spawn --name <name> --archetype <curious|cautious|warm|gloomy> "
-           "[--duration <minutes>] [--mock-llm]";
+           "[--duration <minutes>] [--mock-llm] [--headless]";
 }
 
 Config parse(int argc, char* argv[]) {
@@ -45,6 +45,8 @@ Config parse(int argc, char* argv[]) {
             config.duration = std::chrono::seconds{static_cast<int>(std::ceil(minutes * 60.0))};
         } else if (arg == "--mock-llm") {
             config.mock_llm = true;
+        } else if (arg == "--headless") {
+            config.headless = true;
         } else {
             throw std::invalid_argument("unknown argument: " + std::string{arg} + '\n' + usage());
         }
