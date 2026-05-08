@@ -1,6 +1,7 @@
 #include "ui_runner.h"
 
 #include "ai_character_ui.h"
+#include "presence_registry.h"
 #include "simulation.h"
 
 #include <ftxui/component/event.hpp>
@@ -14,7 +15,10 @@ int UIRunner::run(Cli::Config config) {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
     Simulation simulation{std::move(config)};
     AICharacterUI ui{&screen};
+    PresenceWriter presence;
     simulation.addObserver(&ui);
+    simulation.addObserver(&presence);
+    presence.start();
 
     std::thread sim_thread{[&] {
         try {

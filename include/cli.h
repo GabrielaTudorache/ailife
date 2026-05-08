@@ -7,6 +7,7 @@
 namespace Cli {
 struct Config {
     bool spawn{false};
+    bool creator{false};
     std::string name;
     std::string archetype{"curious"};
     std::chrono::seconds duration{std::chrono::minutes{8}};

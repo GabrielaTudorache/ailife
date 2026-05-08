@@ -29,3 +29,32 @@ std::string lifeStageName(LifeStage stage) {
     }
     return "Unknown";
 }
+
+ActionKind parseActionKind(std::string_view name) {
+    if (name == "FEED") {
+        return ActionKind::Feed;
+    }
+    if (name == "REST") {
+        return ActionKind::Rest;
+    }
+    if (name == "TALK") {
+        return ActionKind::Talk;
+    }
+    if (name == "SAY_GOODBYE") {
+        return ActionKind::SayGoodbye;
+    }
+    return ActionKind::WriteJournal;
+}
+
+LifeStage parseLifeStage(std::string_view name) {
+    if (name == "Adult") {
+        return LifeStage::Adult;
+    }
+    if (name == "Elder") {
+        return LifeStage::Elder;
+    }
+    if (name == "Dying") {
+        return LifeStage::Dying;
+    }
+    return LifeStage::Young;
+}

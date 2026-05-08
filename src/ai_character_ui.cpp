@@ -1,6 +1,6 @@
 #include "ai_character_ui.h"
 
-#include "mascot_renderer.h"
+#include "ui_widgets.h"
 
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -42,22 +42,6 @@ std::string clockText(std::chrono::seconds value) {
     return out.str();
 }
 
-ftxui::Element statBar(const std::string& label, float value, bool high_is_good = true) {
-    const float clamped = std::clamp(value, 0.0F, 100.0F);
-    return ftxui::vbox({ftxui::hbox({ftxui::text(label), ftxui::filler(),
-                                     ftxui::text(std::to_string(static_cast<int>(clamped)) + "/100")}),
-                        ftxui::gauge(clamped / 100.0F) | ftxui::color(statColor(clamped, high_is_good))});
-}
-
-ftxui::Element mascotBox(const UISnapshot& snapshot) {
-    std::vector<ftxui::Element> lines;
-    for (const auto& line :
-         MascotRenderer::frameFor(pickMascotState(snapshot.stage, snapshot.mood, snapshot.last_action))) {
-        lines.push_back(ftxui::text(line));
-    }
-    return ftxui::vbox(std::move(lines)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 17);
-}
-
 constexpr int kTagWidth = 7;
 
 std::string padTag(const std::string& tag) {
@@ -68,7 +52,7 @@ std::string padTag(const std::string& tag) {
 }
 
 ftxui::Element headerBox(const UISnapshot& snapshot) {
-    return ftxui::hbox({mascotBox(snapshot), ftxui::separator(),
+    return ftxui::hbox({UIWidgets::mascotBox(snapshot.stage, snapshot.mood, snapshot.last_action), ftxui::separator(),
                         ftxui::vbox({ftxui::text(snapshot.name) | ftxui::bold,
                                      ftxui::text("archetype: " + snapshot.archetype) | ftxui::dim,
                                      ftxui::text("stage: " + lifeStageName(snapshot.stage)),
@@ -79,9 +63,10 @@ ftxui::Element headerBox(const UISnapshot& snapshot) {
 }
 
 ftxui::Element statsBox(const UISnapshot& snapshot) {
-    auto body = ftxui::vbox({statBar("hunger", static_cast<float>(snapshot.hunger)),
-                             statBar("energy", static_cast<float>(snapshot.energy)), statBar("mood", snapshot.mood),
-                             statBar("loneliness", static_cast<float>(snapshot.loneliness), false)});
+    auto body = ftxui::vbox({UIWidgets::statBar("hunger", static_cast<float>(snapshot.hunger)),
+                             UIWidgets::statBar("energy", static_cast<float>(snapshot.energy)),
+                             UIWidgets::statBar("mood", snapshot.mood),
+                             UIWidgets::statBar("loneliness", static_cast<float>(snapshot.loneliness), false)});
     return ftxui::window(ftxui::text(" Vitals ") | ftxui::bold, body) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 32);
 }
 

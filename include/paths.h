@@ -5,6 +5,7 @@
 
 namespace Paths {
 std::filesystem::path memoriesDirectory();
-}
+std::filesystem::path presenceDirectory();
+} // namespace Paths
 
 #endif // AILIFE_PATHS_H

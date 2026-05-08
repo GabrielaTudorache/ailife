@@ -18,4 +18,19 @@ std::filesystem::path memoriesDirectory() {
     std::filesystem::create_directories(path);
     return path;
 }
+
+std::filesystem::path presenceDirectory() {
+#if defined(_WIN32)
+    const char* root = std::getenv("APPDATA");
+#else
+    const char* root = std::getenv("HOME");
+#endif
+    if (root == nullptr) {
+        throw std::runtime_error("could not determine home directory");
+    }
+
+    auto path = std::filesystem::path{root} / ".ailife" / "village" / "presence";
+    std::filesystem::create_directories(path);
+    return path;
+}
 } // namespace Paths

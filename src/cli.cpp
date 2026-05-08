@@ -14,15 +14,18 @@ bool isArchetype(std::string_view value) {
 
 namespace Cli {
 std::string usage() {
-    return "usage: ailife --spawn --name <name> --archetype <curious|cautious|warm|gloomy> "
-           "[--duration <minutes>] [--mock-llm] [--headless]";
+    return "usage: ailife --creator\n"
+           "       ailife --spawn --name <name> --archetype <curious|cautious|warm|gloomy>\n"
+           "                      [--duration <minutes>] [--mock-llm] [--headless]";
 }
 
 Config parse(int argc, char* argv[]) {
     Config config;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
-        if (arg == "--spawn") {
+        if (arg == "--creator") {
+            config.creator = true;
+        } else if (arg == "--spawn") {
             config.spawn = true;
         } else if (arg == "--name") {
             if (++i >= argc) {
@@ -52,11 +55,19 @@ Config parse(int argc, char* argv[]) {
         }
     }
 
-    if (!config.spawn || config.name.empty()) {
-        throw std::invalid_argument("--spawn and --name are required\n" + usage());
+    if (config.creator && config.spawn) {
+        throw std::invalid_argument("--creator and --spawn are mutually exclusive\n" + usage());
     }
-    if (!isArchetype(config.archetype)) {
-        throw std::invalid_argument("unknown archetype: " + config.archetype + '\n' + usage());
+    if (!config.creator && !config.spawn) {
+        throw std::invalid_argument("must pass --creator or --spawn\n" + usage());
+    }
+    if (config.spawn) {
+        if (config.name.empty()) {
+            throw std::invalid_argument("--name is required with --spawn\n" + usage());
+        }
+        if (!isArchetype(config.archetype)) {
+            throw std::invalid_argument("unknown archetype: " + config.archetype + '\n' + usage());
+        }
     }
     return config;
 }
