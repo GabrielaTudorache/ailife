@@ -2,6 +2,7 @@
 
 #include "memory_entry.h"
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <utility>
@@ -39,6 +40,7 @@ AICharacter& AICharacter::operator=(const AICharacter& other) {
     for (const auto& memory : other.memories_) {
         memories_.push_back(memory->clone());
     }
+    relationships_ = other.relationships_;
 
     return *this;
 }
@@ -61,8 +63,8 @@ void AICharacter::apply(const Action& action) {
         mood_.modify(1.0F);
         break;
     case ActionKind::Talk:
-        loneliness_.modify(-30);
-        mood_.modify(5.0F);
+        loneliness_.modify(-8);
+        mood_.modify(2.0F);
         break;
     case ActionKind::WriteJournal:
         mood_.modify(1.0F);
@@ -71,6 +73,18 @@ void AICharacter::apply(const Action& action) {
     case ActionKind::SayGoodbye:
         memories_.push_back(std::make_unique<LastWords>(action.narrative));
         setLifeStage(LifeStage::Dying);
+        break;
+    case ActionKind::InitiateChat:
+        loneliness_.modify(-15);
+        mood_.modify(2.0F);
+        break;
+    case ActionKind::Reply:
+        loneliness_.modify(-5);
+        mood_.modify(1.0F);
+        break;
+    case ActionKind::EndChat:
+    case ActionKind::Ignore:
+        // no direct effect on stats
         break;
     }
 }
@@ -143,6 +157,36 @@ void AICharacter::applyDecay() {
 
 int AICharacter::getCreatedCount() {
     return created_count_;
+}
+
+const std::unordered_map<int, Relationship>& AICharacter::getRelationships() const {
+    return relationships_;
+}
+
+Relationship& AICharacter::getOrCreateRelationship(int partner_pid, std::string partner_name) {
+    auto it = relationships_.find(partner_pid);
+    if (it == relationships_.end()) {
+        Relationship newRelationship;
+        newRelationship.partner_name = std::move(partner_name);
+        it = relationships_.emplace(partner_pid, std::move(newRelationship)).first;
+    } else if (!partner_name.empty()) {
+        it->second.partner_name = std::move(partner_name);
+    }
+    return it->second;
+}
+
+void AICharacter::decayRelationships() {
+    for (auto& [pid, rel] : relationships_) {
+        rel.bond = Relationship::decay(rel.bond);
+        rel.type = Relationship::classify(rel.bond, rel.messages_exchanged);
+    }
+}
+
+int AICharacter::closeFriendCount() const {
+    return static_cast<int>(
+        std::count_if(relationships_.begin(), relationships_.end(), [](const std::pair<const int, Relationship>& kv) {
+            return kv.second.type == RelationshipType::Friend;
+        }));
 }
 
 std::ostream& operator<<(std::ostream& out, const AICharacter& character) {

@@ -1,5 +1,6 @@
 #include "creator_runner.h"
 
+#include "conversation_reader.h"
 #include "creator_ui.h"
 #include "logger.h"
 #include "presence_registry.h"
@@ -23,11 +24,34 @@ int CreatorRunner::run() {
     std::mutex stop_mutex;
     std::condition_variable stop_cv;
 
+    ConversationReader conversation_reader;
+
     std::thread poll_thread{[&] {
+        int last_selected_pid = 0;
         while (!stop_requested.load()) {
             try {
                 auto presences = reader.scan(logger);
+                int selected_partner_pid = 0;
+                int selected_self_pid = 0;
+                const int selected_pid_initial = ui.selectedPid();
+                for (const auto& p : presences) {
+                    if (p.pid == selected_pid_initial) {
+                        selected_self_pid = p.pid;
+                        selected_partner_pid = p.talking_to_pid;
+                        break;
+                    }
+                }
+                // wipe conversation if selected changes
+                if (selected_pid_initial != last_selected_pid) {
+                    ui.setSelectedTranscript({});
+                    last_selected_pid = selected_pid_initial;
+                }
                 ui.setPresences(std::move(presences), std::chrono::system_clock::now());
+                if (selected_self_pid != 0 && selected_partner_pid != 0) {
+                    auto messages =
+                        conversation_reader.lastMessages(selected_self_pid, selected_partner_pid, 5, logger);
+                    ui.setSelectedTranscript(std::move(messages));
+                }
             } catch (const std::exception& ex) {
                 ui.setError(ex.what());
             }

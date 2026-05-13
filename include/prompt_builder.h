@@ -3,11 +3,15 @@
 
 #include "llm_client.h"
 
+#include <string>
+
 class AICharacter;
 class SimulationClock;
+struct TickContext;
 
 namespace PromptBuilder {
-LLMRequest forTick(const AICharacter& character, const SimulationClock& clock, const std::string& archetype);
+LLMRequest forTurn(const AICharacter& character, const SimulationClock& clock, const std::string& archetype,
+                   const TickContext& ctx);
 LLMRequest forLastWords(const AICharacter& character, const std::string& archetype);
 LLMRequest forMemoriesFile(const AICharacter& character, const std::string& archetype);
 } // namespace PromptBuilder

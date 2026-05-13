@@ -1,6 +1,7 @@
 #ifndef AILIFE_AI_CHARACTER_UI_H
 #define AILIFE_AI_CHARACTER_UI_H
 
+#include "conversation.h"
 #include "simulation_observer.h"
 #include "ui_snapshot.h"
 
@@ -28,6 +29,9 @@ class AICharacterUI : public SimulationObserver {
     void onError(const std::string& message) override;
     void onDeath(const std::string& last_words) override;
     void onMemoriesWritten(const std::filesystem::path& path) override;
+    void onConversationStarted(int partner_pid, const std::string& partner_name) override;
+    void onConversationMessage(int partner_pid, int total_count, const Message& message, bool outgoing) override;
+    void onConversationEnded(int partner_pid, EndReason reason) override;
 
   private:
     void updateStats(const AICharacter& character);

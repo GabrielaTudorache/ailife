@@ -2,7 +2,6 @@
 #define AILIFE_LLM_CLIENT_H
 
 #include <chrono>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,7 +31,7 @@ struct LLMRequest {
 
 struct LLMResponse {
     std::string content;
-    std::optional<ToolCall> tool_call;
+    std::vector<ToolCall> tool_calls;
 };
 
 class LLMClient {
@@ -43,13 +42,14 @@ class LLMClient {
 
 class RealLLMClient : public LLMClient {
   public:
-    RealLLMClient(std::string api_key, std::string model);
+    RealLLMClient(std::string api_key, std::vector<std::string> models);
     LLMResponse complete(const LLMRequest& request) override;
 
   private:
     std::string api_key_;
-    std::string model_;
+    std::vector<std::string> models_;
     std::chrono::steady_clock::time_point last_call_{};
+    std::string debug_path_;
 };
 
 class MockLLMClient : public LLMClient {

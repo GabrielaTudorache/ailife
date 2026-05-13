@@ -27,16 +27,6 @@ std::string moodDot(float mood) {
     return "◎";
 }
 
-std::string moodLabel(float mood) {
-    if (mood >= 65.0F) {
-        return "bright";
-    }
-    if (mood <= 35.0F) {
-        return "low";
-    }
-    return "steady";
-}
-
 std::string formatTime(std::chrono::system_clock::time_point tp) {
     const std::time_t t = std::chrono::system_clock::to_time_t(tp);
     std::tm tm_buf{};
@@ -51,25 +41,132 @@ std::string formatTime(std::chrono::system_clock::time_point tp) {
     return out.str();
 }
 
-std::string clockText(std::chrono::seconds value) {
-    const auto total = std::max<long long>(0, value.count());
-    std::ostringstream out;
-    out << std::setw(2) << std::setfill('0') << total / 60 << ':' << std::setw(2) << std::setfill('0') << total % 60;
-    return out.str();
-}
-
-ftxui::Element listRow(const PresenceSnapshot& snap, bool selected) {
+ftxui::Element listRow(const PresenceSnapshot& snap, bool selected, bool is_partner) {
     std::string row_text = moodDot(snap.mood) + " " + snap.name + " (" + snap.archetype + ")  " +
-                           lifeStageName(snap.stage) + "  mood=" + moodLabel(snap.mood) +
-                           "  age=" + clockText(snap.elapsed);
+                           lifeStageName(snap.stage) + "  mood=" + UIWidgets::moodLabel(snap.mood) +
+                           "  age=" + UIWidgets::clockText(snap.elapsed);
+    if (snap.talking_to_pid != 0) {
+        row_text += "  <-> " + snap.talking_to_name + " (" + std::to_string(snap.conversation_msg_count) + ")";
+    }
     auto elem = ftxui::text(row_text);
     if (selected) {
         elem = elem | ftxui::inverted;
+    } else if (is_partner) {
+        elem = elem | ftxui::color(ftxui::Color::Yellow) | ftxui::bold;
     }
     return elem;
 }
 
-ftxui::Element detailPanel(const PresenceSnapshot& snap) {
+ftxui::Color toneColor(Tone tone) {
+    switch (tone) {
+        case Tone::Warm:
+            return ftxui::Color::GreenLight;
+        case Tone::Cold:
+            return ftxui::Color::CyanLight;
+        case Tone::Neutral:
+        default:
+            return ftxui::Color::GrayLight;
+    }
+}
+
+std::string derivePartnerName(const PresenceSnapshot& snap, const std::vector<Message>& messages) {
+    if (!snap.talking_to_name.empty()) {
+        return snap.talking_to_name;
+    }
+    for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
+        if (it->from_pid != snap.pid && !it->from_name.empty()) {
+            return it->from_name;
+        }
+        if (it->to_pid != snap.pid && !it->to_name.empty()) {
+            return it->to_name;
+        }
+    }
+    return "(unknown)";
+}
+
+ftxui::Element transcriptPanel(const PresenceSnapshot& snap, const std::vector<Message>& messages) {
+    const bool active = snap.talking_to_pid != 0;
+    const std::string partner = derivePartnerName(snap, messages);
+
+    std::vector<ftxui::Element> lines;
+    if (messages.empty()) {
+        lines.push_back(ftxui::text("(no messages yet)") | ftxui::dim);
+    } else {
+        const int last_idx = static_cast<int>(messages.size()) - 1;
+        for (int i = 0; i <= last_idx; ++i) {
+            const auto& m = messages[i];
+            const bool self = m.from_pid == snap.pid;
+            const std::string speaker = self ? snap.name : m.from_name;
+            const auto speaker_color = self ? ftxui::Color::Blue : ftxui::Color::Magenta;
+
+            auto header = ftxui::hbox({
+                ftxui::text(formatTime(m.timestamp)) | ftxui::dim,
+                ftxui::text("  "),
+                ftxui::text(speaker) | ftxui::color(speaker_color) | ftxui::bold,
+                ftxui::text("  ·  ") | ftxui::dim,
+                ftxui::text(toneName(m.tone)) | ftxui::color(toneColor(m.tone)) | ftxui::dim,
+            });
+
+            ftxui::Element body;
+            if (m.is_end) {
+                std::string reason = m.end_reason ? endReasonName(*m.end_reason) : "ended";
+                std::string text = "[end: " + reason + "]";
+                if (!m.content.empty()) {
+                    text += " " + m.content;
+                }
+                body = ftxui::paragraph(text) | ftxui::color(ftxui::Color::Yellow);
+            } else {
+                body = ftxui::paragraph(m.content);
+            }
+            if (i == last_idx) {
+                body = body | ftxui::bold;
+            }
+
+            auto block = ftxui::vbox({
+                header,
+                ftxui::hbox({ftxui::text("  "), body | ftxui::flex}),
+            });
+            // focus the last message
+            if (i == last_idx) {
+                block = block | ftxui::focus;
+            }
+            lines.push_back(std::move(block));
+        }
+    }
+
+    const std::string prefix = active ? "Active conversation" : "Last conversation";
+    const std::string title =
+        " " + prefix + " with " + partner + "  (" + std::to_string(messages.size()) + " msgs) ";
+    auto title_element = ftxui::text(title) | ftxui::bold;
+    if (!active) {
+        title_element = title_element | ftxui::dim;
+    }
+    return ftxui::window(title_element, ftxui::vbox(std::move(lines)) | ftxui::yframe);
+}
+
+ftxui::Element activityPanel(const PresenceSnapshot& snap) {
+    std::vector<ftxui::Element> rows;
+    if (snap.activity.empty()) {
+        rows.push_back(ftxui::text("(no activity yet)") | ftxui::dim);
+    } else {
+        const int last = static_cast<int>(snap.activity.size()) - 1;
+        for (int i = 0; i <= last; ++i) {
+            const auto& e = snap.activity[i];
+            auto row = UIWidgets::journalRow(e.at, e.tag, UIWidgets::tagColor(e.tag), e.text);
+            if (i == last) {
+                row = row | ftxui::focus;
+            }
+            rows.push_back(std::move(row));
+        }
+    }
+    return ftxui::window(ftxui::text(" Activity (" + std::to_string(snap.activity.size()) + ") ") | ftxui::bold,
+                         ftxui::vbox(std::move(rows)) | ftxui::yframe);
+}
+
+// cap activity entries when transcript is visible
+constexpr int kActivityRowsWithTranscript = 10;
+
+ftxui::Element detailPanel(const PresenceSnapshot& snap, bool transcript_visible) {
     const auto age =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - snap.last_heartbeat);
 
@@ -82,17 +179,28 @@ ftxui::Element detailPanel(const PresenceSnapshot& snap) {
                               UIWidgets::statBar("mood", snap.mood),
                               UIWidgets::statBar("loneliness", static_cast<float>(snap.loneliness), false)});
 
-    std::string last_act = actionName(snap.last_action);
-    if (!snap.last_narrative.empty()) {
-        last_act += " - " + snap.last_narrative;
+    auto top = ftxui::hbox({mascot, ftxui::separator(),
+                            ftxui::vbox({ftxui::text(header) | ftxui::bold, ftxui::separator(), stats}) | ftxui::flex});
+
+    auto footer = ftxui::text("heartbeat " + std::to_string(age.count()) + "s ago") | ftxui::dim;
+
+    auto activity = activityPanel(snap);
+    if (transcript_visible) {
+        activity = activity | ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, kActivityRowsWithTranscript);
+    } else {
+        activity = activity | ftxui::flex;
     }
 
-    return ftxui::vbox({ftxui::hbox({mascot, ftxui::separator(),
-                                     ftxui::vbox({ftxui::text(header) | ftxui::bold, ftxui::separator(), stats}) |
-                                         ftxui::flex}),
-                        ftxui::separator(), ftxui::text("last activity: " + last_act) | ftxui::dim,
-                        ftxui::text("heartbeat " + std::to_string(age.count()) + "s ago") | ftxui::dim}) |
-           ftxui::flex;
+    return ftxui::vbox({std::move(top), std::move(activity), std::move(footer)}) | ftxui::flex;
+}
+
+ftxui::Element detailWithTranscript(const PresenceSnapshot& snap, const std::vector<Message>& transcript) {
+    const bool transcript_visible = snap.talking_to_pid != 0 || !transcript.empty();
+    auto detail = detailPanel(snap, transcript_visible);
+    if (!transcript_visible) {
+        return detail;
+    }
+    return ftxui::vbox({detail, transcriptPanel(snap, transcript) | ftxui::flex}) | ftxui::flex;
 }
 
 } // namespace
@@ -122,8 +230,15 @@ ftxui::Component CreatorUI::renderer() {
                 ftxui::paragraph("no AIs detected. start one with `./ailife --spawn ...` in another terminal.") |
                 ftxui::dim);
         } else {
+            int selected_partner_pid = 0;
+            if (snapshot_.selected_index >= 0 && snapshot_.selected_index < n) {
+                selected_partner_pid = presences[snapshot_.selected_index].talking_to_pid;
+            }
             for (int i = 0; i < n; ++i) {
-                list_rows.push_back(listRow(presences[i], i == snapshot_.selected_index));
+                const bool is_selected = i == snapshot_.selected_index;
+                const bool is_partner =
+                    !is_selected && selected_partner_pid != 0 && presences[i].pid == selected_partner_pid;
+                list_rows.push_back(listRow(presences[i], is_selected, is_partner));
             }
         }
         auto list_pane = ftxui::window(ftxui::text(" Beings (" + std::to_string(n) + ") ") | ftxui::bold,
@@ -133,7 +248,7 @@ ftxui::Component CreatorUI::renderer() {
         // detail pane
         ftxui::Element detail;
         if (snapshot_.selected_index >= 0 && snapshot_.selected_index < n) {
-            detail = detailPanel(presences[snapshot_.selected_index]);
+            detail = detailWithTranscript(presences[snapshot_.selected_index], snapshot_.selected_transcript);
         } else {
             detail = ftxui::text("select an AI with ↑/↓") | ftxui::dim | ftxui::center | ftxui::flex;
         }
@@ -195,6 +310,19 @@ void CreatorUI::setPresences(std::vector<PresenceSnapshot> presences, std::chron
         }
     }
     wake();
+}
+
+void CreatorUI::setSelectedTranscript(std::vector<Message> messages) {
+    {
+        std::scoped_lock lock{snapshot_.mutex};
+        snapshot_.selected_transcript = std::move(messages);
+    }
+    wake();
+}
+
+int CreatorUI::selectedPid() {
+    std::scoped_lock lock{snapshot_.mutex};
+    return snapshot_.selected_pid;
 }
 
 void CreatorUI::setError(std::string message) {

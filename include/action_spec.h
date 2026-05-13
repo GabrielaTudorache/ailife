@@ -13,9 +13,10 @@ struct ActionSpec {
     bool has_text_param;
     std::string_view text_param_name;
     std::string_view text_param_hint;
+    bool has_tone_param{false};
 };
 
-const std::array<ActionSpec, 5>& actionSpecs();
+const std::array<ActionSpec, 9>& actionSpecs();
 const ActionSpec& specForKind(ActionKind kind);
 const ActionSpec* specForToolName(std::string_view tool_name);
 

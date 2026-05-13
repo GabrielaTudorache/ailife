@@ -6,59 +6,61 @@
 #include <ftxui/dom/elements.hpp>
 
 #include <algorithm>
-#include <iomanip>
-#include <sstream>
 #include <utility>
 #include <vector>
 
 namespace {
 constexpr int kJournalPageStep = 10;
 
-ftxui::Color statColor(float value, bool high_is_good = true) {
-    const float score = high_is_good ? value : 100.0F - value;
-    if (score < 25.0F) {
+ftxui::Color moodColor(float mood) {
+    if (mood < 25.0F) {
         return ftxui::Color::Red;
     }
-    if (score < 50.0F) {
+    if (mood < 50.0F) {
         return ftxui::Color::Yellow;
     }
     return ftxui::Color::Green;
 }
 
-std::string moodLabel(float mood) {
-    if (mood >= 65.0F) {
-        return "bright";
+ftxui::Element speechBubble(const SpeechBubble& bubble) {
+    if (bubble.text.empty()) {
+        return ftxui::text("");
     }
-    if (mood <= 35.0F) {
-        return "low";
+    const auto age = std::chrono::steady_clock::now() - bubble.at;
+    if (age > std::chrono::seconds{8}) {
+        return ftxui::text("");
     }
-    return "steady";
-}
-
-std::string clockText(std::chrono::seconds value) {
-    const auto total = std::max<long long>(0, value.count());
-    std::ostringstream out;
-    out << std::setw(2) << std::setfill('0') << total / 60 << ':' << std::setw(2) << std::setfill('0') << total % 60;
-    return out.str();
-}
-
-constexpr int kTagWidth = 7;
-
-std::string padTag(const std::string& tag) {
-    if (tag.size() >= static_cast<std::size_t>(kTagWidth)) {
-        return tag;
+    const std::string arrow = bubble.outgoing ? "» " : "« ";
+    auto color = bubble.outgoing ? ftxui::Color::Blue : ftxui::Color::Magenta;
+    auto elem = ftxui::text(arrow + bubble.text) | ftxui::color(color);
+    if (age > std::chrono::seconds{4}) {
+        elem = elem | ftxui::dim;
     }
-    return tag + std::string(static_cast<std::size_t>(kTagWidth) - tag.size(), ' ');
+    return elem;
 }
 
 ftxui::Element headerBox(const UISnapshot& snapshot) {
+    std::vector<ftxui::Element> right;
+    right.push_back(ftxui::text(snapshot.name) | ftxui::bold);
+    right.push_back(ftxui::text("archetype: " + snapshot.archetype) | ftxui::dim);
+    right.push_back(ftxui::text("stage: " + lifeStageName(snapshot.stage)));
+    right.push_back(ftxui::text("mood: " + UIWidgets::moodLabel(snapshot.mood)) |
+                    ftxui::color(moodColor(snapshot.mood)));
+    if (!snapshot.active_partner_name.empty()) {
+        right.push_back(ftxui::text("talking with: " + snapshot.active_partner_name) | ftxui::bold);
+    }
+    auto in_bubble = speechBubble(snapshot.last_incoming);
+    auto out_bubble = speechBubble(snapshot.last_outgoing);
+    if (!snapshot.last_incoming.text.empty() ||
+        std::chrono::steady_clock::now() - snapshot.last_incoming.at < std::chrono::seconds{8}) {
+        right.push_back(in_bubble);
+    }
+    if (!snapshot.last_outgoing.text.empty() ||
+        std::chrono::steady_clock::now() - snapshot.last_outgoing.at < std::chrono::seconds{8}) {
+        right.push_back(out_bubble);
+    }
     return ftxui::hbox({UIWidgets::mascotBox(snapshot.stage, snapshot.mood, snapshot.last_action), ftxui::separator(),
-                        ftxui::vbox({ftxui::text(snapshot.name) | ftxui::bold,
-                                     ftxui::text("archetype: " + snapshot.archetype) | ftxui::dim,
-                                     ftxui::text("stage: " + lifeStageName(snapshot.stage)),
-                                     ftxui::text("mood: " + moodLabel(snapshot.mood)) |
-                                         ftxui::color(statColor(snapshot.mood))}) |
-                            ftxui::flex}) |
+                        ftxui::vbox(std::move(right)) | ftxui::flex}) |
            ftxui::borderRounded;
 }
 
@@ -90,13 +92,7 @@ ftxui::Element journalBox(const UISnapshot& snapshot, int scroll_target) {
     lines.reserve(static_cast<std::size_t>(n));
     for (int i = 0; i < n; ++i) {
         const auto& line = snapshot.feed[i];
-        auto row = ftxui::hbox({
-            ftxui::text(clockText(line.at)) | ftxui::dim,
-            ftxui::text(" "),
-            ftxui::text(" " + padTag(line.tag) + " ") | ftxui::color(ftxui::Color::Black) | ftxui::bgcolor(line.color) |
-                ftxui::bold,
-            ftxui::text("  " + line.text),
-        });
+        auto row = UIWidgets::journalRow(line.at, line.tag, line.color, line.text);
         if (i == focus_idx) {
             row = row | ftxui::focus;
         }
@@ -107,7 +103,7 @@ ftxui::Element journalBox(const UISnapshot& snapshot, int scroll_target) {
 
 ftxui::Element footerBox(const UISnapshot& snapshot) {
     const auto lifespan = snapshot.lifespan.count() > 0 ? snapshot.lifespan : snapshot.elapsed;
-    std::string left = clockText(snapshot.elapsed) + " / " + clockText(lifespan);
+    std::string left = UIWidgets::clockText(snapshot.elapsed) + " / " + UIWidgets::clockText(lifespan);
     if (snapshot.ended && !snapshot.memories_path.empty()) {
         left += "  memories: " + snapshot.memories_path.string();
     } else if (snapshot.ended && !snapshot.last_words.empty()) {
@@ -266,6 +262,41 @@ void AICharacterUI::onDeath(const std::string& last_words) {
         snapshot_.stage = LifeStage::Dying;
         snapshot_.last_words = last_words;
         appendLine("DEATH", last_words, ftxui::Color::Red);
+    }
+    wake();
+}
+
+void AICharacterUI::onConversationStarted(int /*partner_pid*/, const std::string& partner_name) {
+    {
+        std::scoped_lock lock{snapshot_.mutex};
+        snapshot_.active_partner_name = partner_name;
+        appendLine("CHAT", "began talking with " + partner_name, ftxui::Color::Cyan);
+    }
+    wake();
+}
+
+void AICharacterUI::onConversationMessage(int /*partner_pid*/, int /*total_count*/, const Message& message,
+                                          bool outgoing) {
+    {
+        std::scoped_lock lock{snapshot_.mutex};
+        SpeechBubble& slot = outgoing ? snapshot_.last_outgoing : snapshot_.last_incoming;
+        slot.text = message.content;
+        slot.outgoing = outgoing;
+        slot.at = std::chrono::steady_clock::now();
+        if (outgoing) {
+            appendLine("SAID", message.content, ftxui::Color::Blue);
+        } else {
+            appendLine("HEARD", message.from_name + ": " + message.content, ftxui::Color::Magenta);
+        }
+    }
+    wake();
+}
+
+void AICharacterUI::onConversationEnded(int /*partner_pid*/, EndReason reason) {
+    {
+        std::scoped_lock lock{snapshot_.mutex};
+        appendLine("CHAT", "talk ended (" + endReasonName(reason) + ")", ftxui::Color::Cyan);
+        snapshot_.active_partner_name.clear();
     }
     wake();
 }

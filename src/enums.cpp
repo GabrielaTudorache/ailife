@@ -12,6 +12,14 @@ std::string actionName(ActionKind action) {
         return "WRITE_JOURNAL";
     case ActionKind::SayGoodbye:
         return "SAY_GOODBYE";
+    case ActionKind::InitiateChat:
+        return "INITIATE_CHAT";
+    case ActionKind::Reply:
+        return "REPLY";
+    case ActionKind::EndChat:
+        return "END_CHAT";
+    case ActionKind::Ignore:
+        return "IGNORE";
     }
     return "WRITE_JOURNAL";
 }
@@ -43,6 +51,18 @@ ActionKind parseActionKind(std::string_view name) {
     if (name == "SAY_GOODBYE") {
         return ActionKind::SayGoodbye;
     }
+    if (name == "INITIATE_CHAT") {
+        return ActionKind::InitiateChat;
+    }
+    if (name == "REPLY") {
+        return ActionKind::Reply;
+    }
+    if (name == "END_CHAT") {
+        return ActionKind::EndChat;
+    }
+    if (name == "IGNORE") {
+        return ActionKind::Ignore;
+    }
     return ActionKind::WriteJournal;
 }
 
@@ -57,4 +77,18 @@ LifeStage parseLifeStage(std::string_view name) {
         return LifeStage::Dying;
     }
     return LifeStage::Young;
+}
+
+std::string relationshipTypeName(RelationshipType type) {
+    switch (type) {
+    case RelationshipType::Stranger:
+        return "stranger";
+    case RelationshipType::Friend:
+        return "friend";
+    case RelationshipType::Rival:
+        return "rival";
+    case RelationshipType::Family:
+        return "family";
+    }
+    return "stranger";
 }

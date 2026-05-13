@@ -18,6 +18,12 @@ struct JournalLine {
     std::chrono::seconds at{0};
 };
 
+struct SpeechBubble {
+    std::string text;
+    bool outgoing{false};
+    std::chrono::steady_clock::time_point at{};
+};
+
 struct UISnapshot {
     std::mutex mutex;
     std::string name;
@@ -34,6 +40,9 @@ struct UISnapshot {
     bool ended{false};
     std::string last_words;
     std::filesystem::path memories_path;
+    SpeechBubble last_outgoing;
+    SpeechBubble last_incoming;
+    std::string active_partner_name;
 };
 
 #endif // AILIFE_UI_SNAPSHOT_H

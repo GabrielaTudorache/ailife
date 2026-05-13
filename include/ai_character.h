@@ -5,12 +5,14 @@
 #include "being.h"
 #include "memory_entry.h"
 #include "personality.h"
+#include "relationship.h"
 #include "stat.h"
 
 #include <chrono>
 #include <iosfwd>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class AICharacter : public Being {
@@ -37,6 +39,11 @@ class AICharacter : public Being {
     void applyDecay();
     static int getCreatedCount();
 
+    const std::unordered_map<int, Relationship>& getRelationships() const;
+    Relationship& getOrCreateRelationship(int partner_pid, std::string partner_name);
+    void decayRelationships();
+    int closeFriendCount() const;
+
     friend std::ostream& operator<<(std::ostream& out, const AICharacter& character);
     friend std::istream& operator>>(std::istream& in, AICharacter& character);
 
@@ -51,6 +58,7 @@ class AICharacter : public Being {
     std::chrono::steady_clock::time_point birth_time_{std::chrono::steady_clock::now()};
     std::chrono::seconds lifespan_{std::chrono::minutes{8}};
     std::vector<std::unique_ptr<MemoryEntry>> memories_;
+    std::unordered_map<int, Relationship> relationships_;
 };
 
 AICharacter operator+(AICharacter character, std::unique_ptr<MemoryEntry> memory);

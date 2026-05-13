@@ -17,42 +17,49 @@ Action actionFromToolCall(const ToolCall& call) {
     if (spec == nullptr) {
         throw LLMInvalidResponseException("LLM called unknown tool: " + call.name);
     }
-    Action action{spec->kind, {}, {}};
+    Action action{spec->kind, {}};
+    if (!spec->has_text_param && !spec->has_tone_param) {
+        return action;
+    }
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(call.arguments_json);
+    } catch (const nlohmann::json::exception&) {
+        return action;
+    }
     if (spec->has_text_param) {
-        try {
-            const auto parsed = nlohmann::json::parse(call.arguments_json);
-            const auto it = parsed.find(std::string{spec->text_param_name});
-            if (it != parsed.end() && it->is_string()) {
-                action.narrative = it->get<std::string>();
-            }
-        } catch (const nlohmann::json::exception&) {
-            // JSON unparseable, leave narrative empty
+        const auto it = parsed.find(std::string{spec->text_param_name});
+        if (it != parsed.end() && it->is_string()) {
+            action.narrative = it->get<std::string>();
+        }
+    }
+    if (spec->has_tone_param) {
+        const auto it = parsed.find("tone");
+        if (it != parsed.end() && it->is_string()) {
+            action.tone = parseTone(it->get<std::string>());
         }
     }
     return action;
 }
 } // namespace
 
-Action DecisionStrategy::decide(const AICharacter& character, const SimulationClock& clock, LLMClient& llm) {
+TurnResult DecisionStrategy::decide(const AICharacter& character, const SimulationClock& clock, LLMClient& llm,
+                                    const TickContext& ctx) {
     if (character.getLifeStage() == LifeStage::Dying) {
-        return {ActionKind::SayGoodbye, {}, {}};
-    }
-    if (character.getHunger().isCritical(15)) {
-        return {ActionKind::Feed, {}, {}};
-    }
-    if (character.getEnergy().isCritical(15)) {
-        return {ActionKind::Rest, {}, {}};
+        return {{Action{ActionKind::SayGoodbye, {}}}, {}};
     }
 
-    const LLMResponse response = llm.complete(PromptBuilder::forTick(character, clock, archetypeName()));
-    if (!response.tool_call.has_value()) {
-        Action fallback{fallbackAction(character), {}, response.content};
-        return fallback;
+    const LLMResponse response = llm.complete(PromptBuilder::forTurn(character, clock, archetypeName(), ctx));
+    TurnResult result;
+    result.thoughts = response.content;
+    if (response.tool_calls.empty()) {
+        result.actions.push_back({fallbackAction(character), {}});
+        return result;
     }
-
-    Action action = actionFromToolCall(*response.tool_call);
-    action.thoughts = response.content;
-    return action;
+    for (const auto& call : response.tool_calls) {
+        result.actions.push_back(actionFromToolCall(call));
+    }
+    return result;
 }
 
 ActionKind DecisionStrategy::fallbackAction(const AICharacter& character) const {

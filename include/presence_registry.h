@@ -1,6 +1,7 @@
 #ifndef AILIFE_PRESENCE_REGISTRY_H
 #define AILIFE_PRESENCE_REGISTRY_H
 
+#include "conversation.h"
 #include "enums.h"
 #include "logger.h"
 #include "simulation_observer.h"
@@ -13,6 +14,12 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+struct ActivityEntry {
+    std::chrono::seconds at{};
+    std::string tag;
+    std::string text;
+};
 
 struct PresenceSnapshot {
     int pid{};
@@ -29,6 +36,10 @@ struct PresenceSnapshot {
     ActionKind last_action{ActionKind::WriteJournal};
     std::string last_narrative;
     std::chrono::system_clock::time_point last_heartbeat;
+    int talking_to_pid{0};
+    std::string talking_to_name;
+    int conversation_msg_count{0};
+    std::vector<ActivityEntry> activity;
 };
 
 class PresenceWriter : public SimulationObserver {
@@ -48,11 +59,15 @@ class PresenceWriter : public SimulationObserver {
     void onSpoke(const std::string&) override;
     void onStageChanged(LifeStage, LifeStage) override;
     void onDeath(const std::string&) override;
+    void onConversationStarted(int partner_pid, const std::string& partner_name) override;
+    void onConversationMessage(int partner_pid, int total_count, const Message& message, bool outgoing) override;
+    void onConversationEnded(int partner_pid, EndReason reason) override;
 
   private:
     void heartbeatLoop();
     void writeOnce();
     void removeFile();
+    void pushActivity(std::string tag, std::string text);
 
     std::filesystem::path file_path_;
     std::filesystem::path tmp_path_;

@@ -22,6 +22,7 @@
 namespace {
 constexpr int kHeartbeatSeconds = 5;
 constexpr std::size_t kMaxNarrativeLen = 200;
+constexpr std::size_t kMaxActivityEntries = 50;
 
 PresenceSnapshot snapshotFromJson(const nlohmann::json& j) {
     PresenceSnapshot s;
@@ -45,6 +46,26 @@ PresenceSnapshot snapshotFromJson(const nlohmann::json& j) {
 
     const long long ms = j.at("last_heartbeat_ms").get<long long>();
     s.last_heartbeat = std::chrono::system_clock::time_point{std::chrono::milliseconds{ms}};
+
+    if (j.contains("talking_to_pid")) {
+        s.talking_to_pid = j.at("talking_to_pid").get<int>();
+    }
+    if (j.contains("talking_to_name")) {
+        s.talking_to_name = j.at("talking_to_name").get<std::string>();
+    }
+    if (j.contains("conversation_msg_count")) {
+        s.conversation_msg_count = j.at("conversation_msg_count").get<int>();
+    }
+
+    if (j.contains("activity") && j.at("activity").is_array()) {
+        for (const auto& e : j.at("activity")) {
+            ActivityEntry a;
+            a.at = std::chrono::seconds{e.value("at", 0LL)};
+            a.tag = e.value("tag", std::string{});
+            a.text = e.value("text", std::string{});
+            s.activity.push_back(std::move(a));
+        }
+    }
 
     return s;
 }
@@ -117,21 +138,29 @@ void PresenceWriter::onAction(const AICharacter& character, const Action& action
     snapshot_.last_action = action.kind;
     const auto& narrative = action.narrative;
     snapshot_.last_narrative = narrative.size() > kMaxNarrativeLen ? narrative.substr(0, kMaxNarrativeLen) : narrative;
+    std::string entry = actionName(action.kind);
+    if (!narrative.empty()) {
+        entry += " - " + narrative;
+    }
+    pushActivity("ACT", std::move(entry));
 }
 
 void PresenceWriter::onJournal(const std::string& narrative) {
     std::scoped_lock lock{snapshot_mutex_};
     snapshot_.last_narrative = narrative.size() > kMaxNarrativeLen ? narrative.substr(0, kMaxNarrativeLen) : narrative;
+    pushActivity("THINK", narrative);
 }
 
 void PresenceWriter::onSpoke(const std::string& narrative) {
     std::scoped_lock lock{snapshot_mutex_};
     snapshot_.last_narrative = narrative.size() > kMaxNarrativeLen ? narrative.substr(0, kMaxNarrativeLen) : narrative;
+    pushActivity("SAY", narrative);
 }
 
-void PresenceWriter::onStageChanged(LifeStage /*previous*/, LifeStage current) {
+void PresenceWriter::onStageChanged(LifeStage previous, LifeStage current) {
     std::scoped_lock lock{snapshot_mutex_};
     snapshot_.stage = current;
+    pushActivity("STAGE", lifeStageName(previous) + " -> " + lifeStageName(current));
 }
 
 void PresenceWriter::onDeath(const std::string& last_words) {
@@ -139,6 +168,45 @@ void PresenceWriter::onDeath(const std::string& last_words) {
     snapshot_.stage = LifeStage::Dying;
     const auto& text = last_words;
     snapshot_.last_narrative = text.size() > kMaxNarrativeLen ? text.substr(0, kMaxNarrativeLen) : text;
+    pushActivity("DEATH", last_words);
+}
+
+void PresenceWriter::onConversationStarted(int partner_pid, const std::string& partner_name) {
+    std::scoped_lock lock{snapshot_mutex_};
+    snapshot_.talking_to_pid = partner_pid;
+    snapshot_.talking_to_name = partner_name;
+    snapshot_.conversation_msg_count = 1;
+    pushActivity("CHAT", "began talking with " + partner_name);
+}
+
+void PresenceWriter::onConversationMessage(int partner_pid, int total_count, const Message& /*message*/,
+                                           bool /*outgoing*/) {
+    std::scoped_lock lock{snapshot_mutex_};
+    if (snapshot_.talking_to_pid == partner_pid) {
+        snapshot_.conversation_msg_count = total_count;
+    }
+}
+
+void PresenceWriter::onConversationEnded(int partner_pid, EndReason reason) {
+    std::scoped_lock lock{snapshot_mutex_};
+    if (snapshot_.talking_to_pid == partner_pid) {
+        pushActivity("CHAT", "talk ended with " + snapshot_.talking_to_name + " (" + endReasonName(reason) + ")");
+        snapshot_.talking_to_pid = 0;
+        snapshot_.talking_to_name.clear();
+        snapshot_.conversation_msg_count = 0;
+    }
+}
+
+void PresenceWriter::pushActivity(std::string tag, std::string text) {
+    if (text.size() > kMaxNarrativeLen) {
+        text.resize(kMaxNarrativeLen);
+    }
+    snapshot_.activity.push_back({snapshot_.elapsed, std::move(tag), std::move(text)});
+    if (snapshot_.activity.size() > kMaxActivityEntries) {
+        snapshot_.activity.erase(snapshot_.activity.begin(),
+                                 snapshot_.activity.begin() +
+                                     static_cast<std::ptrdiff_t>(snapshot_.activity.size() - kMaxActivityEntries));
+    }
 }
 
 void PresenceWriter::heartbeatLoop() {
@@ -179,6 +247,15 @@ void PresenceWriter::writeOnce() {
         j["last_action"] = actionName(snap.last_action);
         j["last_narrative"] = snap.last_narrative;
         j["last_heartbeat_ms"] = ms;
+        j["talking_to_pid"] = snap.talking_to_pid;
+        j["talking_to_name"] = snap.talking_to_name;
+        j["conversation_msg_count"] = snap.conversation_msg_count;
+
+        nlohmann::json acts = nlohmann::json::array();
+        for (const auto& a : snap.activity) {
+            acts.push_back({{"at", a.at.count()}, {"tag", a.tag}, {"text", a.text}});
+        }
+        j["activity"] = std::move(acts);
 
         {
             std::ofstream out{tmp_path_};

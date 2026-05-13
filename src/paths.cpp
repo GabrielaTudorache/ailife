@@ -3,8 +3,8 @@
 #include <cstdlib>
 #include <stdexcept>
 
-namespace Paths {
-std::filesystem::path memoriesDirectory() {
+namespace {
+std::filesystem::path villageRoot() {
 #if defined(_WIN32)
     const char* root = std::getenv("APPDATA");
 #else
@@ -13,23 +13,25 @@ std::filesystem::path memoriesDirectory() {
     if (root == nullptr) {
         throw std::runtime_error("could not determine home directory");
     }
+    return std::filesystem::path{root} / ".ailife" / "village";
+}
+} // namespace
 
-    auto path = std::filesystem::path{root} / ".ailife" / "village" / "memories";
+namespace Paths {
+std::filesystem::path memoriesDirectory() {
+    auto path = villageRoot() / "memories";
     std::filesystem::create_directories(path);
     return path;
 }
 
 std::filesystem::path presenceDirectory() {
-#if defined(_WIN32)
-    const char* root = std::getenv("APPDATA");
-#else
-    const char* root = std::getenv("HOME");
-#endif
-    if (root == nullptr) {
-        throw std::runtime_error("could not determine home directory");
-    }
+    auto path = villageRoot() / "presence";
+    std::filesystem::create_directories(path);
+    return path;
+}
 
-    auto path = std::filesystem::path{root} / ".ailife" / "village" / "presence";
+std::filesystem::path conversationsDirectory() {
+    auto path = villageRoot() / "conversations";
     std::filesystem::create_directories(path);
     return path;
 }
