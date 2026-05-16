@@ -16,6 +16,8 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <unordered_set>
 #include <vector>
 
 class Simulation {
@@ -24,9 +26,21 @@ class Simulation {
     void run();
     void addObserver(SimulationObserver* observer);
     void requestStop();
+    void onWeather(const std::string& condition, int intensity);
+    void onGift(const std::string& item, const std::string& note);
+    void onWhisper(const std::string& message);
+    void onMoodNudge(float delta);
+    void onForceKill();
 
   private:
+    struct WorldState {
+        std::string weather;
+        int weather_intensity{0};
+    };
+
     void tickOnce();
+    void pollEvents();
+    void moveEventToApplied(const std::filesystem::path& path, const std::string& prefix = "") const;
     void applyBodyAction(const Action& action);
     void dispatchReply(const Action& action, const TickContext& ctx);
     void dispatchEndChat(const Action& action);
@@ -58,6 +72,10 @@ class Simulation {
     ConversationManager conversation_;
     PresenceReader neighbors_;
     std::vector<PresenceSnapshot> latest_neighbors_;
+    WorldState world_state_;
+    std::unordered_set<std::string> applied_command_ids_;
+    std::vector<std::string> pending_whispers_;
+    bool kill_requested_{false};
 };
 
 #endif // AILIFE_SIMULATION_H

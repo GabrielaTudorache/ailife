@@ -1,5 +1,6 @@
 #include "simulation.h"
 
+#include "command.h"
 #include "conversation_reader.h"
 #include "memory_entry.h"
 #include "paths.h"
@@ -30,19 +31,6 @@
 namespace {
 constexpr int kHardCapMessages = 15;
 constexpr int kSoftNudgeMessages = 10;
-
-Personality personalityFor(const std::string& archetype) {
-    if (archetype == "curious") {
-        return {90, 50, 55, 65, 35, "collects questions"};
-    }
-    if (archetype == "cautious") {
-        return {45, 85, 25, 60, 55, "counts exits"};
-    }
-    if (archetype == "warm") {
-        return {60, 55, 85, 90, 30, "remembers voices"};
-    }
-    return {75, 50, 30, 55, 80, "names the shadows"};
-}
 
 std::vector<std::string> parseModelList(const std::string& raw) {
     std::vector<std::string> out;
@@ -93,12 +81,40 @@ std::string safeFilePart(std::string value) {
     return value;
 }
 
+std::string randomNonEmptyAsset(const std::vector<std::string>& assets) {
+    if (assets.size() <= 1) {
+        return {};
+    }
+    static std::mt19937 rng{std::random_device{}()};
+    std::uniform_int_distribution<std::size_t> dist{1, assets.size() - 1};
+    return assets[dist(rng)];
+}
+
+MascotAppearance withRandomMissingAppearance(MascotAppearance appearance) {
+    if (appearance.hat.empty()) {
+        appearance.hat = randomNonEmptyAsset(availableHatAssets());
+    }
+    if (appearance.eyes.empty()) {
+        appearance.eyes = randomNonEmptyAsset(availableEyeAssets());
+    }
+    if (appearance.mouth.empty()) {
+        appearance.mouth = randomNonEmptyAsset(availableMouthAssets());
+    }
+    return appearance;
+}
+
+bool isPendingEventFile(const std::filesystem::path& path) {
+    const std::string name = path.filename().string();
+    return name.rfind("pending_", 0) == 0 && path.extension() == ".json";
+}
+
 } // namespace
 
 Simulation::Simulation(Cli::Config config)
-    : ai_(config.name, personalityFor(config.archetype)), llm_(makeLlm(config.mock_llm)),
-      strategy_(makeStrategy(config.archetype)), clock_(config.duration), my_pid_(GET_PID()),
-      conversation_(my_pid_, ai_.getName(), birth_at_, logger_) {
+    : ai_(config.name, config.custom_personality ? config.personality : personalityForArchetype(config.archetype),
+          withRandomMissingAppearance(config.appearance)),
+      llm_(makeLlm(config.mock_llm)), strategy_(makeStrategy(config.archetype)), clock_(config.duration),
+      my_pid_(GET_PID()), conversation_(my_pid_, ai_.getName(), birth_at_, logger_) {
     ai_.setLifespan(config.duration);
 }
 
@@ -143,6 +159,11 @@ void Simulation::tickOnce() {
     ai_.tick();
     ai_.decayRelationships();
     onStageChanged(previous, ai_.getLifeStage());
+    pollEvents();
+    if (kill_requested_) {
+        finished_ = true;
+        return;
+    }
     for (SimulationObserver* observer : observers_) {
         observer->onTick(ai_, std::chrono::duration_cast<std::chrono::seconds>(clock_.elapsed()),
                          std::chrono::duration_cast<std::chrono::seconds>(clock_.remaining()));
@@ -215,6 +236,15 @@ void Simulation::tickOnce() {
 
     TickContext ctx;
     ctx.visible_peers = latest_neighbors_;
+    if (!world_state_.weather.empty()) {
+        ctx.weather = world_state_.weather;
+        ctx.weather_intensity = world_state_.weather_intensity;
+    }
+    std::vector<std::string> whispers_this_tick = std::move(pending_whispers_);
+    pending_whispers_.clear();
+    if (!whispers_this_tick.empty()) {
+        ctx.whisper = whispers_this_tick.back();
+    }
     ctx.active_partner_name = conversation_.activePartnerName().value_or("");
     ctx.active_partner_pid = conversation_.activePartnerPid().value_or(0);
     ctx.can_initiate = eligibleToChat() && !conversation_.hasActiveConversation() && !primary_inbound.has_value();
@@ -274,6 +304,21 @@ void Simulation::tickOnce() {
     if (!turn.thoughts.empty()) {
         for (SimulationObserver* observer : observers_) {
             observer->onThought(turn.thoughts);
+        }
+    }
+
+    bool chose_journal = false;
+    for (const auto& a : turn.actions) {
+        if (a.kind == ActionKind::WriteJournal) {
+            chose_journal = true;
+            break;
+        }
+    }
+    if (!whispers_this_tick.empty() && !chose_journal) {
+        const std::string note = "I heard a voice inside me say: \"" + whispers_this_tick.back() + "\".";
+        ai_ += std::make_unique<JournalEntry>(note);
+        for (SimulationObserver* observer : observers_) {
+            observer->onJournal(note);
         }
     }
 
@@ -380,6 +425,113 @@ void Simulation::tickOnce() {
         }
         applyBodyAction(*body);
     }
+}
+
+void Simulation::pollEvents() {
+    std::vector<std::filesystem::path> pending;
+    const auto events = Paths::eventsDirectory();
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(events)) {
+            if (entry.is_regular_file() && isPendingEventFile(entry.path())) {
+                pending.push_back(entry.path());
+            }
+        }
+    } catch (const std::exception& ex) {
+        for (SimulationObserver* observer : observers_) {
+            observer->onError(std::string{"event scan failed: "} + ex.what());
+        }
+        return;
+    }
+    std::sort(pending.begin(), pending.end());
+
+    for (const auto& path : pending) {
+        try {
+            std::ifstream in{path, std::ios::binary};
+            if (!in) {
+                throw CommandParseException{"could not open command file: " + path.string()};
+            }
+            const auto json = nlohmann::json::parse(in);
+            const std::string id = json.value("id", path.filename().string());
+            if (applied_command_ids_.contains(id)) {
+                continue;
+            }
+            const int target_pid = json.value("target_pid", 0);
+            if (target_pid != 0 && target_pid != my_pid_) {
+                continue;
+            }
+            auto command = CommandIo::fromJson(json);
+            command->apply(*this);
+            applied_command_ids_.insert(id);
+            for (SimulationObserver* observer : observers_) {
+                observer->onThought("creator intervention: " + command->description());
+            }
+            if (target_pid == my_pid_) {
+                moveEventToApplied(path);
+            }
+        } catch (const CommandParseException& ex) {
+            for (SimulationObserver* observer : observers_) {
+                observer->onError(ex.what());
+            }
+            moveEventToApplied(path, "bad_");
+        } catch (const nlohmann::json::exception& ex) {
+            for (SimulationObserver* observer : observers_) {
+                observer->onError(std::string{"bad command json: "} + ex.what());
+            }
+            moveEventToApplied(path, "bad_");
+        } catch (const std::exception& ex) {
+            for (SimulationObserver* observer : observers_) {
+                observer->onError(std::string{"command failed: "} + ex.what());
+            }
+        }
+    }
+}
+
+void Simulation::moveEventToApplied(const std::filesystem::path& path, const std::string& prefix) const {
+    try {
+        auto target = Paths::appliedEventsDirectory() / (prefix + path.filename().string());
+        if (std::filesystem::exists(target)) {
+            target += "." + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        }
+        std::filesystem::rename(path, target);
+    } catch (const std::exception& ex) {
+        for (SimulationObserver* observer : observers_) {
+            observer->onError(std::string{"could not archive command file: "} + ex.what());
+        }
+    }
+}
+
+void Simulation::onWeather(const std::string& condition, int intensity) {
+    world_state_.weather = condition;
+    world_state_.weather_intensity = std::clamp(intensity, 1, 3);
+    const std::string note = "The weather changed: " + condition + ".";
+    ai_ += std::make_unique<JournalEntry>(note);
+    for (SimulationObserver* observer : observers_) {
+        observer->onJournal(note);
+    }
+}
+
+void Simulation::onGift(const std::string& item, const std::string& note) {
+    ai_.adjustMood(5.0F);
+    std::string entry = "Someone left me " + item + ".";
+    if (!note.empty()) {
+        entry += " The note said: " + note;
+    }
+    ai_ += std::make_unique<JournalEntry>(entry);
+    for (SimulationObserver* observer : observers_) {
+        observer->onJournal(entry);
+    }
+}
+
+void Simulation::onWhisper(const std::string& message) {
+    pending_whispers_.push_back(message);
+}
+
+void Simulation::onMoodNudge(float delta) {
+    ai_.adjustMood(delta);
+}
+
+void Simulation::onForceKill() {
+    kill_requested_ = true;
 }
 
 void Simulation::applyBodyAction(const Action& action) {

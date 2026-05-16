@@ -2,6 +2,7 @@
 #define AILIFE_UI_WIDGETS_H
 
 #include "enums.h"
+#include "mascot_renderer.h"
 
 #include <ftxui/dom/elements.hpp>
 
@@ -12,6 +13,7 @@
 namespace UIWidgets {
 ftxui::Element statBar(const std::string& label, float value, bool high_is_good = true);
 ftxui::Element mascotBox(LifeStage stage, float mood, ActionKind last_action);
+ftxui::Element mascotBox(LifeStage stage, float mood, ActionKind last_action, const MascotAppearance& appearance);
 
 std::string clockText(std::chrono::seconds value);
 std::string moodLabel(float mood);

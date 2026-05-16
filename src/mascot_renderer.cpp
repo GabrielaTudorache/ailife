@@ -1,9 +1,11 @@
 #include "mascot_renderer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -103,6 +105,13 @@ struct LayerSet {
     std::string mouth;
 };
 
+bool containsAsset(const std::vector<std::string>& assets, const std::string& asset) {
+    if (asset.empty()) {
+        return true;
+    }
+    return std::find(assets.begin(), assets.end(), asset) != assets.end();
+}
+
 LayerSet layersFor(MascotState state) {
     switch (state) {
     case MascotState::Happy:
@@ -119,11 +128,14 @@ LayerSet layersFor(MascotState state) {
     return {"eyes_neutral_1.txt", "mouth_neutral_1.txt"};
 }
 
-std::vector<std::string> renderFrame(MascotState state) {
+std::vector<std::string> renderFrame(MascotState state, const MascotAppearance& appearance = {}) {
     auto grid = loadGrid("base.txt");
     const auto layers = layersFor(state);
-    overlay(grid, loadGrid(layers.eyes));
-    overlay(grid, loadGrid(layers.mouth));
+    if (!appearance.hat.empty()) {
+        overlay(grid, loadGrid(appearance.hat));
+    }
+    overlay(grid, loadGrid(appearance.eyes.empty() ? layers.eyes : appearance.eyes));
+    overlay(grid, loadGrid(appearance.mouth.empty() ? layers.mouth : appearance.mouth));
     return joinRows(grid);
 }
 
@@ -143,6 +155,24 @@ std::vector<std::string> MascotRenderer::frameFor(MascotState state) {
     return frame;
 }
 
+std::vector<std::string> MascotRenderer::frameFor(MascotState state, const MascotAppearance& appearance) {
+    if (appearance.hat.empty() && appearance.eyes.empty() && appearance.mouth.empty()) {
+        return frameFor(state);
+    }
+    static std::mutex cache_mutex;
+    static std::unordered_map<std::string, std::vector<std::string>> cache;
+
+    std::ostringstream key;
+    key << static_cast<int>(state) << '|' << appearance.hat << '|' << appearance.eyes << '|' << appearance.mouth;
+    std::scoped_lock lock{cache_mutex};
+    if (auto it = cache.find(key.str()); it != cache.end()) {
+        return it->second;
+    }
+    auto frame = renderFrame(state, appearance);
+    cache.emplace(key.str(), frame);
+    return frame;
+}
+
 MascotState pickMascotState(LifeStage stage, float mood, ActionKind last_action) {
     if (stage == LifeStage::Dying) {
         return MascotState::Dying;
@@ -157,4 +187,44 @@ MascotState pickMascotState(LifeStage stage, float mood, ActionKind last_action)
         return MascotState::Sad;
     }
     return MascotState::Neutral;
+}
+
+const std::vector<std::string>& availableHatAssets() {
+    static const std::vector<std::string> assets{"", "hat_1.txt", "hat_2.txt", "hat_3.txt"};
+    return assets;
+}
+
+const std::vector<std::string>& availableEyeAssets() {
+    static const std::vector<std::string> assets{"",
+                                                 "eyes_happy.txt",
+                                                 "eyes_sad.txt",
+                                                 "eyes_sleeping.txt",
+                                                 "eyes_dying.txt",
+                                                 "eyes_neutral_1.txt",
+                                                 "eyes_neutral_2.txt",
+                                                 "eyes_neutral_3.txt",
+                                                 "eyes_neutral_4.txt",
+                                                 "eyes_neutral_5.txt",
+                                                 "eyes_neutral_6.txt",
+                                                 "eyes_neutral_7.txt",
+                                                 "eyes_neutral_8.txt"};
+    return assets;
+}
+
+const std::vector<std::string>& availableMouthAssets() {
+    static const std::vector<std::string> assets{
+        "", "mouth_happy.txt", "mouth_sad.txt", "mouth_dying.txt", "mouth_neutral_1.txt", "mouth_neutral_2.txt"};
+    return assets;
+}
+
+bool isValidHatAsset(const std::string& asset) {
+    return containsAsset(availableHatAssets(), asset);
+}
+
+bool isValidEyeAsset(const std::string& asset) {
+    return containsAsset(availableEyeAssets(), asset);
+}
+
+bool isValidMouthAsset(const std::string& asset) {
+    return containsAsset(availableMouthAssets(), asset);
 }

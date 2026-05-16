@@ -12,4 +12,6 @@ struct Personality {
     std::string quirk{"quiet"};
 };
 
+Personality personalityForArchetype(const std::string& archetype);
+
 #endif // AILIFE_PERSONALITY_H

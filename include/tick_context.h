@@ -32,6 +32,9 @@ struct TickContext {
     int relationship_exchanges{0};
     RelationshipType relationship_type{RelationshipType::Stranger};
     bool soft_nudge_to_end{false};
+    std::optional<std::string> whisper;
+    std::optional<std::string> weather;
+    int weather_intensity{0};
 };
 
 #endif // AILIFE_TICK_CONTEXT_H

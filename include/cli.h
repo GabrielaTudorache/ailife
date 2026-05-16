@@ -4,6 +4,9 @@
 #include <chrono>
 #include <string>
 
+#include "mascot_renderer.h"
+#include "personality.h"
+
 namespace Cli {
 struct Config {
     bool spawn{false};
@@ -13,6 +16,9 @@ struct Config {
     std::chrono::seconds duration{std::chrono::minutes{8}};
     bool mock_llm{false};
     bool headless{false};
+    MascotAppearance appearance;
+    bool custom_personality{false};
+    Personality personality;
 };
 
 Config parse(int argc, char** argv);

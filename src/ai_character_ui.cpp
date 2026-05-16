@@ -59,8 +59,8 @@ ftxui::Element headerBox(const UISnapshot& snapshot) {
         std::chrono::steady_clock::now() - snapshot.last_outgoing.at < std::chrono::seconds{8}) {
         right.push_back(out_bubble);
     }
-    return ftxui::hbox({UIWidgets::mascotBox(snapshot.stage, snapshot.mood, snapshot.last_action), ftxui::separator(),
-                        ftxui::vbox(std::move(right)) | ftxui::flex}) |
+    return ftxui::hbox({UIWidgets::mascotBox(snapshot.stage, snapshot.mood, snapshot.last_action, snapshot.appearance),
+                        ftxui::separator(), ftxui::vbox(std::move(right)) | ftxui::flex}) |
            ftxui::borderRounded;
 }
 
@@ -180,6 +180,7 @@ void AICharacterUI::onSimulationStarted(const AICharacter& character, const std:
         std::scoped_lock lock{snapshot_.mutex};
         snapshot_.name = character.getName();
         snapshot_.archetype = archetype;
+        snapshot_.appearance = character.getAppearance();
         updateStats(character);
         appendLine("ACT", character.getName() + " begins a " + archetype + " life.", ftxui::Color::Green);
     }

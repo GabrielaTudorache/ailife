@@ -3,6 +3,7 @@
 
 #include "action.h"
 #include "being.h"
+#include "mascot_renderer.h"
 #include "memory_entry.h"
 #include "personality.h"
 #include "relationship.h"
@@ -19,6 +20,7 @@ class AICharacter : public Being {
   public:
     AICharacter();
     AICharacter(std::string name, Personality personality);
+    AICharacter(std::string name, Personality personality, MascotAppearance appearance);
     AICharacter(const AICharacter& other);
     AICharacter& operator=(const AICharacter& other);
     ~AICharacter() override;
@@ -32,11 +34,13 @@ class AICharacter : public Being {
     const Stat<int>& getEnergy() const;
     const Stat<float>& getMood() const;
     const Stat<int>& getLoneliness() const;
+    const MascotAppearance& getAppearance() const;
     const std::vector<std::unique_ptr<MemoryEntry>>& getMemories() const;
     void setLifespan(std::chrono::seconds lifespan);
     void recomputeStage();
     bool isDead() const;
     void applyDecay();
+    void adjustMood(float delta);
     static int getCreatedCount();
 
     const std::unordered_map<int, Relationship>& getRelationships() const;
@@ -51,6 +55,7 @@ class AICharacter : public Being {
     static int created_count_;
 
     Personality personality_;
+    MascotAppearance appearance_;
     Stat<int> hunger_{80, 0, 100, 4};
     Stat<int> energy_{80, 0, 100, 3};
     Stat<float> mood_{50.0F, 0.0F, 100.0F, 1.5F};

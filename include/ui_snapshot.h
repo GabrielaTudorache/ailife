@@ -2,6 +2,7 @@
 #define AILIFE_UI_SNAPSHOT_H
 
 #include "enums.h"
+#include "mascot_renderer.h"
 
 #include <ftxui/screen/color.hpp>
 
@@ -36,6 +37,7 @@ struct UISnapshot {
     std::chrono::seconds elapsed{0};
     std::chrono::seconds lifespan{0};
     ActionKind last_action{ActionKind::WriteJournal};
+    MascotAppearance appearance;
     std::deque<JournalLine> feed;
     bool ended{false};
     std::string last_words;

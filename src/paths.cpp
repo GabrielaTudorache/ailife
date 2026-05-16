@@ -35,4 +35,16 @@ std::filesystem::path conversationsDirectory() {
     std::filesystem::create_directories(path);
     return path;
 }
+
+std::filesystem::path eventsDirectory() {
+    auto path = villageRoot() / "events";
+    std::filesystem::create_directories(path);
+    return path;
+}
+
+std::filesystem::path appliedEventsDirectory() {
+    auto path = eventsDirectory() / "applied";
+    std::filesystem::create_directories(path);
+    return path;
+}
 } // namespace Paths

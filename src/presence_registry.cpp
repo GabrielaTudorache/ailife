@@ -30,6 +30,12 @@ PresenceSnapshot snapshotFromJson(const nlohmann::json& j) {
     s.id = j.at("id").get<int>();
     s.name = j.at("name").get<std::string>();
     s.archetype = j.at("archetype").get<std::string>();
+    if (j.contains("appearance") && j.at("appearance").is_object()) {
+        const auto& appearance = j.at("appearance");
+        s.appearance.hat = appearance.value("hat", std::string{});
+        s.appearance.eyes = appearance.value("eyes", std::string{});
+        s.appearance.mouth = appearance.value("mouth", std::string{});
+    }
 
     s.stage = parseLifeStage(j.at("stage").get<std::string>());
 
@@ -109,6 +115,7 @@ void PresenceWriter::onSimulationStarted(const AICharacter& character, const std
     snapshot_.id = AICharacter::getCreatedCount();
     snapshot_.name = character.getName();
     snapshot_.archetype = archetype;
+    snapshot_.appearance = character.getAppearance();
     snapshot_.stage = character.getLifeStage();
     snapshot_.hunger = character.getHunger().getValue();
     snapshot_.energy = character.getEnergy().getValue();
@@ -237,6 +244,8 @@ void PresenceWriter::writeOnce() {
         j["id"] = snap.id;
         j["name"] = snap.name;
         j["archetype"] = snap.archetype;
+        j["appearance"] = {
+            {"hat", snap.appearance.hat}, {"eyes", snap.appearance.eyes}, {"mouth", snap.appearance.mouth}};
         j["stage"] = lifeStageName(snap.stage);
         j["hunger"] = snap.hunger;
         j["energy"] = snap.energy;

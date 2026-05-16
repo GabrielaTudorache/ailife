@@ -44,8 +44,12 @@ ftxui::Element statBar(const std::string& label, float value, bool high_is_good)
 }
 
 ftxui::Element mascotBox(LifeStage stage, float mood, ActionKind last_action) {
+    return mascotBox(stage, mood, last_action, MascotAppearance{});
+}
+
+ftxui::Element mascotBox(LifeStage stage, float mood, ActionKind last_action, const MascotAppearance& appearance) {
     std::vector<ftxui::Element> lines;
-    for (const auto& line : MascotRenderer::frameFor(pickMascotState(stage, mood, last_action))) {
+    for (const auto& line : MascotRenderer::frameFor(pickMascotState(stage, mood, last_action), appearance)) {
         lines.push_back(ftxui::text(line));
     }
     return ftxui::vbox(std::move(lines)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 17);

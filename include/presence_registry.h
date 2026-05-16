@@ -4,6 +4,7 @@
 #include "conversation.h"
 #include "enums.h"
 #include "logger.h"
+#include "mascot_renderer.h"
 #include "simulation_observer.h"
 
 #include <atomic>
@@ -34,6 +35,7 @@ struct PresenceSnapshot {
     std::chrono::seconds elapsed{};
     std::chrono::seconds lifespan{};
     ActionKind last_action{ActionKind::WriteJournal};
+    MascotAppearance appearance;
     std::string last_narrative;
     std::chrono::system_clock::time_point last_heartbeat;
     int talking_to_pid{0};

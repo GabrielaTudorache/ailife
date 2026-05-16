@@ -12,7 +12,11 @@ int AICharacter::created_count_ = 0;
 AICharacter::AICharacter() : AICharacter("Unnamed", Personality{}) {}
 
 AICharacter::AICharacter(std::string name, Personality personality)
-    : Being(std::move(name), LifeStage::Young), personality_(std::move(personality)) {
+    : AICharacter(std::move(name), std::move(personality), MascotAppearance{}) {}
+
+AICharacter::AICharacter(std::string name, Personality personality, MascotAppearance appearance)
+    : Being(std::move(name), LifeStage::Young), personality_(std::move(personality)),
+      appearance_(std::move(appearance)) {
     ++created_count_;
 }
 
@@ -29,6 +33,7 @@ AICharacter& AICharacter::operator=(const AICharacter& other) {
     setName(other.getName());
     setLifeStage(other.getLifeStage());
     personality_ = other.personality_;
+    appearance_ = other.appearance_;
     hunger_ = other.hunger_;
     energy_ = other.energy_;
     mood_ = other.mood_;
@@ -89,6 +94,10 @@ void AICharacter::apply(const Action& action) {
     }
 }
 
+void AICharacter::adjustMood(float delta) {
+    mood_.modify(delta);
+}
+
 AICharacter& AICharacter::operator+=(std::unique_ptr<MemoryEntry> memory) {
     memories_.push_back(std::move(memory));
     return *this;
@@ -112,6 +121,10 @@ const Stat<float>& AICharacter::getMood() const {
 
 const Stat<int>& AICharacter::getLoneliness() const {
     return loneliness_;
+}
+
+const MascotAppearance& AICharacter::getAppearance() const {
+    return appearance_;
 }
 
 const std::vector<std::unique_ptr<MemoryEntry>>& AICharacter::getMemories() const {

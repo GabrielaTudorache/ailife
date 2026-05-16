@@ -54,6 +54,20 @@ void appendState(std::ostringstream& out, const AICharacter& character) {
         << "]\n";
 }
 
+void appendWorldContext(std::ostringstream& out, const TickContext& ctx) {
+    if (!ctx.weather.has_value() && !ctx.whisper.has_value()) {
+        return;
+    }
+    out << "World context this turn:\n";
+    if (ctx.weather.has_value()) {
+        out << "- The weather is " << *ctx.weather << " (intensity " << ctx.weather_intensity << ").\n";
+    }
+    if (ctx.whisper.has_value()) {
+        out << "- A voice you cannot place whispers inside your head: \"" << *ctx.whisper
+            << "\". Only you can hear it. Interpret it in your own personality.\n";
+    }
+}
+
 void appendPastWithPartner(std::ostringstream& out, const AICharacter& character, const std::string& partner_name,
                            const std::vector<Message>& past) {
     if (past.empty()) {
@@ -210,8 +224,10 @@ std::vector<ToolDef> availableTools(const TickContext& ctx) {
 }
 
 const char* axis(int value, const char* high, const char* mid, const char* low) {
-    if (value >= 65) return high;
-    if (value <= 35) return low;
+    if (value >= 65)
+        return high;
+    if (value <= 35)
+        return low;
     return mid;
 }
 
@@ -337,6 +353,7 @@ LLMRequest forTurn(const AICharacter& character, const SimulationClock& clock, c
 
     appendPeers(user, character, ctx.visible_peers);
     appendState(user, character);
+    appendWorldContext(user, ctx);
 
     const std::string partner_for_past = opener    ? ctx.inbound->partner_name
                                          : in_chat ? ctx.active_partner_name
