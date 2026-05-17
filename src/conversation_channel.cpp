@@ -23,11 +23,7 @@ std::filesystem::path ConversationChannel::directoryFor(int pid_a, int pid_b) {
 }
 
 ConversationChannel::ConversationChannel(int my_pid, int partner_pid)
-    : my_pid_(my_pid), partner_pid_(partner_pid), dir_(directoryFor(my_pid, partner_pid)) {}
-
-const std::filesystem::path& ConversationChannel::directory() const {
-    return dir_;
-}
+    : my_pid_(my_pid), dir_(directoryFor(my_pid, partner_pid)) {}
 
 long long ConversationChannel::append(const Message& message) {
     std::filesystem::create_directories(dir_);
@@ -53,7 +49,7 @@ long long ConversationChannel::append(const Message& message) {
     return ts_ms;
 }
 
-std::vector<Message> ConversationChannel::read(long long since_ms, Logger& logger) const {
+std::vector<Message> ConversationChannel::read(long long since_ms, const Logger& logger) const {
     std::vector<Message> messages;
     std::error_code ec;
     if (!std::filesystem::exists(dir_, ec)) {
@@ -92,14 +88,4 @@ std::vector<Message> ConversationChannel::read(long long since_ms, Logger& logge
     std::sort(messages.begin(), messages.end(),
               [](const Message& a, const Message& b) { return timestampMs(a.timestamp) < timestampMs(b.timestamp); });
     return messages;
-}
-
-bool ConversationChannel::isClosed(Logger& logger) const {
-    const auto messages = read(0, logger);
-    for (const auto& m : messages) {
-        if (m.is_end) {
-            return true;
-        }
-    }
-    return false;
 }

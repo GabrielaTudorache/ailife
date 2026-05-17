@@ -46,7 +46,6 @@ class AICharacter : public Being {
     const std::unordered_map<int, Relationship>& getRelationships() const;
     Relationship& getOrCreateRelationship(int partner_pid, std::string partner_name);
     void decayRelationships();
-    int closeFriendCount() const;
 
     friend std::ostream& operator<<(std::ostream& out, const AICharacter& character);
     friend std::istream& operator>>(std::istream& in, AICharacter& character);

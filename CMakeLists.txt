@@ -59,6 +59,16 @@ function(set_custom_stdlib_and_sanitizers target add_apple_asan)
         target_compile_options(${target} PRIVATE /experimental:module-)
         if(USE_ASAN)
             target_compile_options(${target} PRIVATE "$<${debug_mode}:/fsanitize=address>")
+            # MSVC ASan instruments std::string / std::vector with annotation symbols
+            # (annotate_string / annotate_vector). Our deps (ftxui, cpr) are not
+            # compiled with ASan, so the annotations don't match and the linker
+            # rejects with LNK2038. Disable the annotations on our side to match.
+            # Applied unconditionally (not gated on debug_mode) because the defines
+            # must be visible to every translation unit that includes <string>/<vector>.
+            # https://learn.microsoft.com/cpp/sanitizers/error-container-overflow
+            target_compile_definitions(${target} PRIVATE
+                _DISABLE_VECTOR_ANNOTATION=1
+                _DISABLE_STRING_ANNOTATION=1)
         endif()
         return()
     endif()
@@ -104,6 +114,27 @@ include(cmake/CopyHelper.cmake)
 
 ###############################################################################
 
+# static-link FetchContent deps so the installed executable is self-contained
+# (otherwise cpr/ftxui/zlib ship as .so files that aren't copied to the install dir)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build deps statically" FORCE)
+
+# prevent windows.h (pulled in transitively by curl/cpr) from defining the min/max
+# macros, which would break std::min and std::numeric_limits<T>::max() in our code
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
+# propagate the libc++ choice to all FetchContent deps when building with Clang on Linux
+# required for MSan: dependencies must use the same stdlib as the main target, otherwise
+# the link line is missing libstdc++ symbols (DSO error) or MSan produces false positives
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND NOT WIN32 AND NOT APPLE)
+    detect_libcpp()
+    if(HAS_LIBCPP)
+        add_compile_options(-stdlib=libc++)
+        add_link_options(-stdlib=libc++)
+    endif()
+endif()
+
 # external dependencies with FetchContent
 include(FetchContent)
 
@@ -128,6 +159,7 @@ FetchContent_MakeAvailable(ftxui)
 set(CPR_USE_SYSTEM_CURL  OFF CACHE BOOL "Use bundled libcurl" FORCE)
 set(CPR_BUILD_TESTS      OFF CACHE BOOL "" FORCE)
 set(CPR_BUILD_TESTS_SSL  OFF CACHE BOOL "" FORCE)
+set(CPR_CURL_USE_LIBPSL      OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(cpr
     GIT_REPOSITORY https://github.com/libcpr/cpr.git
     GIT_TAG        1.14.2

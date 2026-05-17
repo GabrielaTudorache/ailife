@@ -286,7 +286,7 @@ void PresenceWriter::removeFile() {
 PresenceReader::PresenceReader(std::chrono::seconds fresh_threshold, std::chrono::hours cleanup_threshold)
     : fresh_threshold_{fresh_threshold}, cleanup_threshold_{cleanup_threshold} {}
 
-std::vector<PresenceSnapshot> PresenceReader::scan(Logger& logger) const {
+std::vector<PresenceSnapshot> PresenceReader::scan(const Logger& logger) const {
     std::vector<PresenceSnapshot> result;
     const auto dir = Paths::presenceDirectory();
     const auto now = std::chrono::system_clock::now();

@@ -277,8 +277,7 @@ void Simulation::tickOnce() {
         const auto& active = conversation_.activeTranscript();
         const long long past_cutoff_ms =
             active.empty() ? timestampMs(primary_inbound->message.timestamp) : timestampMs(active.front().timestamp);
-        ConversationReader convo_reader;
-        ctx.past_with_partner = convo_reader.messagesBefore(my_pid_, partner_pid, past_cutoff_ms, 10, logger_);
+        ctx.past_with_partner = ConversationReader::messagesBefore(my_pid_, partner_pid, past_cutoff_ms, 10, logger_);
 
         if (!conversation_.hasActiveConversation()) {
             const auto& rels = ai_.getRelationships();

@@ -121,8 +121,6 @@ int CreatorRunner::run(const Cli::Config& config) {
     std::mutex stop_mutex;
     std::condition_variable stop_cv;
 
-    ConversationReader conversation_reader;
-
     std::thread poll_thread{[&] {
         int last_selected_pid = 0;
         while (!stop_requested.load()) {
@@ -146,7 +144,7 @@ int CreatorRunner::run(const Cli::Config& config) {
                 ui.setPresences(std::move(presences), std::chrono::system_clock::now());
                 if (selected_self_pid != 0 && selected_partner_pid != 0) {
                     auto messages =
-                        conversation_reader.lastMessages(selected_self_pid, selected_partner_pid, 5, logger);
+                        ConversationReader::lastMessages(selected_self_pid, selected_partner_pid, 5, logger);
                     ui.setSelectedTranscript(std::move(messages));
                 }
                 sweepOldBroadcastEvents();

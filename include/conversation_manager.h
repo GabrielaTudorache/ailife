@@ -43,7 +43,6 @@ class ConversationManager {
     std::optional<std::string> activePartnerName() const;
     int activeMessageCount() const;
     const std::deque<Message>& activeTranscript() const;
-    std::chrono::system_clock::time_point lastIncomingAt() const;
 
   private:
     void clearActive();

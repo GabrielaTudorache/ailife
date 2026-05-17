@@ -90,7 +90,7 @@ class PresenceReader {
     explicit PresenceReader(std::chrono::seconds fresh_threshold = std::chrono::seconds{30},
                             std::chrono::hours cleanup_threshold = std::chrono::hours{24});
 
-    std::vector<PresenceSnapshot> scan(Logger& logger) const;
+    std::vector<PresenceSnapshot> scan(const Logger& logger) const;
 
   private:
     std::chrono::seconds fresh_threshold_;

@@ -10,7 +10,6 @@ template <typename T> class Stat {
     }
 
     T getValue() const { return value_; }
-    T getMin() const { return min_value_; }
     T getMax() const { return max_value_; }
 
     void decay() { modify(-decay_per_tick_); }
@@ -19,8 +18,6 @@ template <typename T> class Stat {
         value_ += delta;
         clamp();
     }
-
-    bool isCritical(T threshold) const { return value_ <= threshold; }
 
     Stat& operator+=(T delta) {
         modify(delta);

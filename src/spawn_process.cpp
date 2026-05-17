@@ -137,6 +137,7 @@ long spawnHeadlessAI(const SpawnOptions& options, bool mock_llm) {
         std::vector<std::string> owned = args;
         std::vector<char*> argv;
         argv.reserve(owned.size() + 1);
+        // cppcheck-suppress constVariableReference
         for (auto& arg : owned) {
             argv.push_back(arg.data());
         }

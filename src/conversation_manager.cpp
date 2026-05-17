@@ -84,7 +84,7 @@ std::vector<InboxUpdate> ConversationManager::pollInbox(const std::vector<Presen
         }
         last_seen_ms_per_channel_[partner_pid] = max_ts;
 
-        for (auto& m : messages) {
+        for (const auto& m : messages) {
             if (m.from_pid == my_pid_) {
                 continue;
             }
@@ -236,13 +236,9 @@ std::optional<EndReason> ConversationManager::handleTimeouts(const std::vector<P
 
     const auto since_incoming =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last_incoming_at_);
-    if (since_incoming > timeout && active_messages_.size() >= 1) {
-        bool waiting_on_partner = false;
-        if (!active_messages_.empty()) {
-            const auto& last = active_messages_.back();
-            waiting_on_partner = (last.from_pid == my_pid_);
-        }
-        if (waiting_on_partner) {
+    if (since_incoming > timeout && !active_messages_.empty()) {
+        const auto& last = active_messages_.back();
+        if (last.from_pid == my_pid_) {
             closeActive(EndReason::Timeout, "");
             return EndReason::Timeout;
         }
@@ -275,10 +271,6 @@ int ConversationManager::activeMessageCount() const {
 
 const std::deque<Message>& ConversationManager::activeTranscript() const {
     return active_messages_;
-}
-
-std::chrono::system_clock::time_point ConversationManager::lastIncomingAt() const {
-    return last_incoming_at_;
 }
 
 void ConversationManager::clearActive() {

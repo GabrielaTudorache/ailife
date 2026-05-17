@@ -17,7 +17,6 @@ struct ActionSpec {
 };
 
 const std::array<ActionSpec, 9>& actionSpecs();
-const ActionSpec& specForKind(ActionKind kind);
 const ActionSpec* specForToolName(std::string_view tool_name);
 
 #endif // AILIFE_ACTION_SPEC_H

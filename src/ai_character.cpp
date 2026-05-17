@@ -2,7 +2,6 @@
 
 #include "memory_entry.h"
 
-#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <utility>
@@ -193,13 +192,6 @@ void AICharacter::decayRelationships() {
         rel.bond = Relationship::decay(rel.bond);
         rel.type = Relationship::classify(rel.bond, rel.messages_exchanged);
     }
-}
-
-int AICharacter::closeFriendCount() const {
-    return static_cast<int>(
-        std::count_if(relationships_.begin(), relationships_.end(), [](const std::pair<const int, Relationship>& kv) {
-            return kv.second.type == RelationshipType::Friend;
-        }));
 }
 
 std::ostream& operator<<(std::ostream& out, const AICharacter& character) {

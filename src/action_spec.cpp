@@ -1,7 +1,5 @@
 #include "action_spec.h"
 
-#include <stdexcept>
-
 namespace {
 constexpr std::array<ActionSpec, 9> kSpecs{{
     {ActionKind::Feed, "feed", "Eat something to restore fullness. No words; just the act.", false, {}, {}, false},
@@ -25,15 +23,6 @@ constexpr std::array<ActionSpec, 9> kSpecs{{
 
 const std::array<ActionSpec, 9>& actionSpecs() {
     return kSpecs;
-}
-
-const ActionSpec& specForKind(ActionKind kind) {
-    for (const auto& spec : kSpecs) {
-        if (spec.kind == kind) {
-            return spec;
-        }
-    }
-    throw std::logic_error("unknown ActionKind");
 }
 
 const ActionSpec* specForToolName(std::string_view tool_name) {
