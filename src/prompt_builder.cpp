@@ -92,14 +92,15 @@ void appendMemories(std::ostringstream& out, const AICharacter& character,
     std::vector<const MemoryEntry*> events;
     std::vector<const MemoryEntry*> journals;
     for (const auto& memory : memories) {
-        if (memory->getKind() == "journal") {
+        if (dynamic_cast<const JournalEntry*>(memory.get()) != nullptr) {
             journals.push_back(memory.get());
             continue;
         }
-        if (!exclude_letter_partner.empty() && memory->getKind() == "letter") {
-            const auto* letter = static_cast<const LetterEntry*>(memory.get());
-            if (letter->getFrom() == exclude_letter_partner || letter->getTo() == exclude_letter_partner) {
-                continue;
+        if (!exclude_letter_partner.empty()) {
+            if (const auto* letter = dynamic_cast<const LetterEntry*>(memory.get())) {
+                if (letter->getFrom() == exclude_letter_partner || letter->getTo() == exclude_letter_partner) {
+                    continue;
+                }
             }
         }
         events.push_back(memory.get());

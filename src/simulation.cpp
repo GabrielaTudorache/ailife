@@ -726,21 +726,18 @@ std::string Simulation::buildLifeLog() const {
     }
     int index = 1;
     for (const auto& memory : memories) {
-        const std::string& kind = memory->getKind();
         out << index++ << ". ";
-        if (kind == "letter") {
-            const auto* letter = static_cast<const LetterEntry*>(memory.get());
+        if (const auto* letter = dynamic_cast<const LetterEntry*>(memory.get())) {
             out << "**letter** _" << letter->getFrom() << " → " << letter->getTo() << ":_ " << memory->getText()
                 << '\n';
-        } else if (kind == "inheritance") {
-            const auto* inh = static_cast<const Inheritance*>(memory.get());
+        } else if (const auto* inh = dynamic_cast<const Inheritance*>(memory.get())) {
             out << "**inheritance** _from " << inh->getFrom() << ":_ " << memory->getText() << '\n';
-        } else if (kind == "last_words") {
+        } else if (dynamic_cast<const LastWords*>(memory.get()) != nullptr) {
             out << "**last words:** " << memory->getText() << '\n';
-        } else if (kind == "journal") {
+        } else if (dynamic_cast<const JournalEntry*>(memory.get()) != nullptr) {
             out << "**journal:** " << memory->getText() << '\n';
         } else {
-            out << "**" << kind << ":** " << memory->getText() << '\n';
+            out << "**" << memory->getKind() << ":** " << memory->getText() << '\n';
         }
     }
     return out.str();
